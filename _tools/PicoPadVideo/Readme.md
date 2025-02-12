@@ -18,21 +18,19 @@ ffmpeg -i input_video_file -vn -ar 22050 -acodec pcm_u8 -ac 1 SOUND.wav
 
 3. Next, edit the video in a program such as Handbrake to a size of 160×240 and 10 FPS (frames per second)
 
-4. Then we extract the individual fields from the video to a BMP folder
+4. Then we extract the individual frames from the video to a BMP folder
 ```
 ffmpeg -i input_video_file -vf fps=10 BMP/%06d.bmp
 ```
 
-5. And convert to RGB525 16-bit 
+5. And convert to RGB 8 bit indexed / 256 colors
 ```
-cd BMP; ls -1 ../BMP | xargs -I {} -n1 convert -colors 256 -define bmp:format=bmp3 -compress none ../BMP/"{}" "{}"; cd ..
+cd BMP; ls -1 | xargs -I {} -n1 convert -colors 256 -define bmp:format=bmp3 -compress none "{}" "{}"; cd ..
 ```
 
 6. Now we can use the PicoPadVideo utility itself
-The utility assumes "Flip row oder" by default.
-So for our case we use the --bmpisnotbat argument
 ```
-PicoPadVideo --bmpisnotbat
+PicoPadVideo
 ```
 
 If everything went correctly, you should now have a VIDEO.VID file in your directory. This is your coveted video that
