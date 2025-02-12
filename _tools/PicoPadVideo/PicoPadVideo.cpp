@@ -20,7 +20,7 @@
 //#define SOUNDSAMP_DEL (FPS / (SOUNDRATE - SOUNDRATE/FPS*FPS)) // number of frames to delete 1 sound sample (= 2)
 #define SOUNDFILE "SOUND.wav"
 #define OUTFILE "VIDEO.VID"
-#define BMPFILE "BMP\\%06d.bmp"
+#define BMPFILE "BMP/%06d.bmp"
 #define WIDTH 160 // image width
 #define HEIGHT 240 // image height
 #define IMGSIZE (WIDTH*HEIGHT + 4*256 + 54 + 1000) // input image size + reserve (= 40474)
@@ -33,10 +33,10 @@ typedef unsigned char u8;
 typedef signed short s16;
 typedef unsigned short u16;
 
-typedef signed long int s32;		// on 64-bit system use "signed int"
-typedef unsigned long int u32;		// on 64-bit system use "unsigned int"
-//typedef signed int s32;
-//typedef unsigned int u32;
+//typedef signed long int s32;		// on 64-bit system use "signed int"
+//typedef unsigned long int u32;		// on 64-bit system use "unsigned int"
+typedef signed int s32;
+typedef unsigned int u32;
 
 typedef unsigned int BOOL;
 #define TRUE  1
@@ -116,7 +116,17 @@ int SndOff; // sound sample offset
 // main function
 int main(int argc, char* argv[])
 {
+	int BMPISBAT=-1;
 	int i, j;
+
+	if (argc > 1) {
+		for (i=1; i < argc; i++) {
+			if (strcmp("--bmpisnotbat", argv[i]) == 0) {
+				BMPISBAT=0;
+				break;
+			}
+		}
+	}
 
 	if ((sizeof(_bmpBITMAPFILEHEADER) != 14) ||
 		(sizeof(_bmpBITMAPINFOHEADER) != 40))
@@ -177,7 +187,7 @@ int main(int argc, char* argv[])
 		(fmt->nSamplesPerSec != 22050) || // check rate
 		(fmt->wBitsPerSample != 8)) // check bits per sample
 	{
-		printf("Incorrect format of input file %s,\n", argv[1]);
+		printf("Incorrect format of input file %s,\n", SOUNDFILE);
 		printf("  must be PCM mono 8-bit 22050Hz.\n");
 		return 1;
 	}
@@ -204,7 +214,14 @@ int main(int argc, char* argv[])
 
 		// open image file
 		f = fopen(Filename, "rb");
-		if (f == NULL) break;
+		if (f == NULL) {
+			if (i == 0) {
+				continue;
+			} else {
+				printf("\nFile %s not found, terminating process!\n", Filename);
+				break;
+			}
+		}
 
 		// read image file
 		int size2 = (int)fread(Img, 1, IMGSIZE, f);
@@ -255,10 +272,19 @@ int main(int argc, char* argv[])
 		}
 
 		// write image data (even image: even pixels, odd image: odd pixels)
-		if (fwrite(ImgData, 1, WIDTH*HEIGHT, fout) != WIDTH*HEIGHT)
-		{
-			printf("\nError write to output file " OUTFILE "\n");
-			return 1;
+		if (BMPISBAT) {
+			if (fwrite(ImgData, 1, WIDTH*HEIGHT, fout) != WIDTH*HEIGHT)
+			{
+				printf("\nError write to output file " OUTFILE "\n");
+				return 1;
+			}
+		} else {
+			for (j = WIDTH*HEIGHT-WIDTH; j >= 0; j -= WIDTH) {
+				if (fwrite(&ImgData[j], 1, WIDTH, fout) != WIDTH) {
+					printf("\nError write slice to output file " OUTFILE "\n");
+					return 1;
+				}
+			}
 		}
 
 		// write sound sample
@@ -284,4 +310,3 @@ int main(int argc, char* argv[])
 
 	return 0;
 }
-
