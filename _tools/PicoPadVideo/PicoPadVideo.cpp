@@ -33,10 +33,8 @@ typedef unsigned char u8;
 typedef signed short s16;
 typedef unsigned short u16;
 
-//typedef signed long int s32;		// on 64-bit system use "signed int"
-//typedef unsigned long int u32;		// on 64-bit system use "unsigned int"
-typedef signed int s32;
-typedef unsigned int u32;
+typedef signed int s32;		// On 32-bit and 64-bit systems are int 32 bit
+typedef unsigned int u32;	// On 32-bit and 64-bit systems are unsigned int 32 bit
 
 typedef unsigned int BOOL;
 #define TRUE  1
@@ -116,13 +114,14 @@ int SndOff; // sound sample offset
 // main function
 int main(int argc, char* argv[])
 {
-	int BMPISBAT=-1;
+	BOOL BMPISBAT = TRUE;
+	int processed_frames = 0;
 	int i, j;
 
 	if (argc > 1) {
 		for (i=1; i < argc; i++) {
 			if (strcmp("--bmpisnotbat", argv[i]) == 0) {
-				BMPISBAT=0;
+				BMPISBAT = FALSE;
 				break;
 			}
 		}
@@ -218,7 +217,6 @@ int main(int argc, char* argv[])
 			if (i == 0) {
 				continue;
 			} else {
-				printf("\nFile %s not found, terminating process!\n", Filename);
 				break;
 			}
 		}
@@ -300,13 +298,14 @@ int main(int argc, char* argv[])
 		*/
 		if (SndOff > SndNum) SndOff = SndNum;
 
+		processed_frames++;
 		printf(".");
 	}
 
 	// close output file
 	fclose(fout);
 
-	printf("\nProcessed %d frames\n", i);
+	printf("\nProcessed %d frames\n", processed_frames);
 
 	return 0;
 }
