@@ -3,7 +3,7 @@
 # Compilation...
 
 export TARGET="CONFIG"
-export GRPDIR="."
+export GRPDIR="CONFIG"
 export MEMMAP=""
 
 ../../../_c1.sh "$1"
