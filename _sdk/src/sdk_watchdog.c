@@ -134,6 +134,9 @@ void WatchdogSetupReboot(u32 us, u32 pc, u32 sp)
 void KeyWaitNoPressed();
 #endif
 
+// Device terminate
+void DeviceTerm();
+
 // reset to boot loader
 void ResetToBootLoader()
 {
@@ -141,6 +144,9 @@ void ResetToBootLoader()
 	// wait for no key pressed
 	KeyWaitNoPressed();
 #endif
+
+	// device terminate
+	DeviceTerm();
 
 	// set loader magic
 	watchdog_hw->scratch[4] = WATCHDOG_LOADER_MAGIC;

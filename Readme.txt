@@ -1,9 +1,9 @@
 
 PicoLibSDK - Alternative SDK library for Raspberry Pico, RP2040 and RP2350
 ==========================================================================
-SDK Programmer's Guide, Version 2.03, December 2024
+SDK Programmer's Guide, Version 2.07, March 2025
 
-Copyright (c) 2023-2024 Miroslav Nemecek
+Copyright (c) 2023-2025 Miroslav Nemecek
 
 Panda38@seznam.cz
 hardyplotter2@gmail.com
@@ -39,7 +39,7 @@ compatibility. What you can find in the PicoLibSDK library:
   linked list, memory allocator, 2D transformation matrix, mini-ring buffer,
   formatted print, PWM sound output with ADPCM, random generator, rectangle,
   ring buffer, DMA ring buffer, SD card, streams, text strings, text list, text
-  print, tree list, VGA drawing, video player.
+  print, tree list, VGA drawing, video player, MP3 player.
 
 - USB library: multiplayer mini-port, CDC device and host - serial communication,
   HID device and host - including external keyboard and mouse.
@@ -52,7 +52,7 @@ compatibility. What you can find in the PicoLibSDK library:
   calculation method - Ln, Exp, Sqrt, Sin, Cos, Tan, arcus, hyperbolic functions
   and many more. Linear factorials with accurate and fast calculation.
 
-- Display drivers: Prepared support of TFT and VGA display with resolution
+- Display drivers: Prepared support of TFT, VGA and HDMI display with resolution
   320x240 up to 800x600, with 4, 8, 15 or 16 bits output.
 
 - Devices: Support of Picoino/PicoinoMini with 8-bit QVGA display, DemoVGA with
@@ -510,6 +510,7 @@ _tools - support programs:
 	- DviTms - generator of DVI TMDS 16-bit 2-symbol table
 	- HidComp - compiler and decompiler of HID descriptors
 	- PicoPadImg - converting BMP images to PicoPad format
+	- PicoPadImg2 - converting BMP images to DispHSTX format
 	- PicoPadLoaderBin - export boot3 loader to C source code
 	- PicoPadLoaderCrc - calculate (and set) application checksum
 	- PicoPadVideo - video converter to PicoPad/Picoino format
@@ -837,6 +838,13 @@ History of versions
 10/27/2024 version 2.01: Fast float library for RISC-V Hazard3 core.
 11/05/2024 version 2.02: NES Emulator
 12/03/2024 version 2.03: Fast double library for RISC-V Hazard3 core.
+02/24/2025 version 2.04: DispHSTX library v1.00, DrawCan library, faster
+	compilation, configurable compilation paths
+03/02/2025 version 2.05: Build of DispHSTX v1.01 library for Raspberry PicoSDK
+03/05/2025 version 2.06: PWMSnd update - higher quality audio output, less
+	noise, higher PWM output sample rate, 12-bit output, stereo and 16-bit
+	format support
+03/14/2025 version 2.07: MP3 decoder and player
 
 
 Missing and @TODO
@@ -846,6 +854,5 @@ SDK supports that are missing in the library and are needed @TODO:
 - bluetooth and wifi
 - more USB drivers (audio, bluetooth, dfu, midi, msc, net, tmc, video)
 - DDS compression image format, JPG compression
-- MP3 compression
 - 3D graphics support
 - encapsulation of text strings into C++ objects

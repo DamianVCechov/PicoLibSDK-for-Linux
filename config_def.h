@@ -351,6 +351,10 @@ RAMSIZE		// RAM base size in bytes (256 KB or 512 KB)
 #define USE_USB_HOST_VENDOR	0		// use USB VENDOR Vendor specific device (host)
 #endif
 
+#ifndef USE_VREG_LOCKED
+#define USE_VREG_LOCKED		0		// 1=enable vreg locked values > 1.30V from function GetVoltageBySysClock() of RP2350
+#endif
+
 #ifndef USE_WATCHDOG
 #define USE_WATCHDOG	1		// use Watchdog timer (sdk_watchdog.c, sdk_watchdog.h)
 #endif
@@ -395,8 +399,52 @@ RAMSIZE		// RAM base size in bytes (256 KB or 512 KB)
 #define USE_DECNUM	1		// use DecNum (decnum.c, decnum.h)
 #endif
 
+#ifndef USE_DISPHSTX
+#define USE_DISPHSTX	0		// 1=use HSTX Display driver
+#endif
+
 #ifndef USE_DRAW
 #define USE_DRAW	0		// use drawing to frame buffer (lib_draw.c, lib_draw.h)
+#endif
+
+#ifndef USE_DRAWCAN
+#define USE_DRAWCAN	0		// 1=use drawing canvas library (lib_drawcan*.c, lib_drawcan*.h)
+#endif
+
+#ifndef USE_DRAWCAN0
+#define USE_DRAWCAN0	1		// 1=use DrawCan common functions, if use drawing canvas
+#endif
+
+#ifndef USE_DRAWCAN1
+#define USE_DRAWCAN1	1		// 1=use DrawCan1 1-bit functions, if use drawing canvas
+#endif
+
+#ifndef USE_DRAWCAN2
+#define USE_DRAWCAN2	1		// 1=use DrawCan2 2-bit functions, if use drawing canvas
+#endif
+
+#ifndef USE_DRAWCAN3
+#define USE_DRAWCAN3	1		// 1=use DrawCan3 3-bit functions, if use drawing canvas
+#endif
+
+#ifndef USE_DRAWCAN4
+#define USE_DRAWCAN4	1		// 1=use DrawCan4 4-bit functions, if use drawing canvas
+#endif
+
+#ifndef USE_DRAWCAN6
+#define USE_DRAWCAN6	1		// 1=use DrawCan6 6-bit functions, if use drawing canvas
+#endif
+
+#ifndef USE_DRAWCAN8
+#define USE_DRAWCAN8	1		// 1=use DrawCan8 8-bit functions, if use drawing canvas
+#endif
+
+#ifndef USE_DRAWCAN12
+#define USE_DRAWCAN12	1		// 1=use DrawCan12 12-bit functions, if use drawing canvas
+#endif
+
+#ifndef USE_DRAWCAN16
+#define USE_DRAWCAN16	1		// 1=use DrawCan15/16 15/16-bit functions, if use drawing canvas
 #endif
 
 #ifndef USE_ESCPKT
@@ -437,6 +485,10 @@ RAMSIZE		// RAM base size in bytes (256 KB or 512 KB)
 
 #ifndef USE_MINIRING
 #define USE_MINIRING	1		// use Mini-Ring buffer (lib_miniring.c, lib_miniring.h)
+#endif
+
+#ifndef USE_MP3
+#define USE_MP3		0		// use MP3 decoder (lib_mp3*.c, lib_mp3*.h)
 #endif
 
 #ifndef USE_PRINT
@@ -562,7 +614,7 @@ RAMSIZE		// RAM base size in bytes (256 KB or 512 KB)
 // ----------------------------------------------------------------------------
 
 #ifndef USE_BIGINT
-#define USE_BIGINT	1		// use Big Integers (bigint.c, bigint.h)
+#define USE_BIGINT	0 //1		// use Big Integers (bigint.c, bigint.h)
 #endif
 
 #ifndef BIGINT_BERN_NUM
@@ -807,11 +859,11 @@ RAMSIZE		// RAM base size in bytes (256 KB or 512 KB)
 #endif
 
 #ifndef UART_STDIO_TX
-#define UART_STDIO_TX		0	// UART stdio TX GPIO pin
+#define UART_STDIO_TX		0	// UART stdio TX GPIO pin (function mode UART or AUX is auto-selected)
 #endif
 
 #ifndef UART_STDIO_RX
-#define UART_STDIO_RX		1	// UART stdio RX GPIO pin
+#define UART_STDIO_RX		1	// UART stdio RX GPIO pin (function mode UART or AUX is auto-selected)
 #endif
 
 #ifndef UART_STDIO_TXBUF
@@ -904,8 +956,9 @@ RAMSIZE		// RAM base size in bytes (256 KB or 512 KB)
 // DMA temporary channel to calculate CRC and memory copy/fill.
 //  CPU0 uses DMA channel 11, CPU1 uses DMA channel 10, so functions can be used
 //  simultaneously, without collision. However, they cannot be used simultaneously in an interrupt.
+// DMA channels 14 and 15 use DispHSTX controller.
 #ifndef DMA_TEMP_CHAN
-#define DMA_TEMP_CHAN()	(DMA_CHANNELS - 1 - CpuID())
+#define DMA_TEMP_CHAN()	(11 - CpuID())
 #endif
 
 #ifndef ROSC_MHZ
