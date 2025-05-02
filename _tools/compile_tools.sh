@@ -7,6 +7,8 @@ cd ../HidComp
 gcc -m32 HidComp.cpp -o HidComp
 cd ../PicoPadImg
 gcc -m32 PicoPadImg.cpp -o PicoPadImg
+cd ../PicoPadImg2
+gcc -m32 PicoPadImg.cpp -o PicoPadImg2
 cd ../PicoPadLoaderBin
 gcc -m32 LoaderBin.cpp -o LoaderBin
 cd ../PicoPadLoaderCrc
@@ -25,7 +27,9 @@ cd ../RaspPicoSnd
 gcc -m32 RaspPicoSnd.cpp -o RaspPicoSnd
 cd ../DviTmds
 gcc -m32 DviTmds.cpp -o DviTmds
-cd ../BinC
+cd ../DviTmds/DviTmds_AllTab
+gcc -m32 DviTmds.cpp -o DviTmds
+cd ../../BinC
 gcc -m32 BinC.cpp -o BinC
 cd ../BinS
 gcc -m32 BinS.cpp -o BinS

@@ -1,1 +1,0 @@
-DviTmds.exe > tab.c

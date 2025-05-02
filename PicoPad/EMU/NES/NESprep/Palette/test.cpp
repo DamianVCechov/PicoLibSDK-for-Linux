@@ -3,8 +3,9 @@
 
 
 #include <stdio.h>
-#include <windows.h>
 #include <math.h>
+#include <string.h>
+#include <malloc.h>
 
 typedef signed char s8;
 typedef unsigned char u8;
