@@ -152,6 +152,9 @@ int main() {
             case KEY_RIGHT: angle_yaw   -= rotation_speed; break;
             case KEY_A:     scale += zoom_speed; break;
             case KEY_B:     if (scale > zoom_speed) scale -= zoom_speed; break;
+#if USE_SCREENSHOT
+            case KEY_X:     SmallScreenShot(); break;
+#endif
             case KEY_Y:     ResetToBootLoader(); break;
         }
     }
