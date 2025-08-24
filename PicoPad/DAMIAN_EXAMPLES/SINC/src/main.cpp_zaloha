@@ -1,0 +1,56 @@
+#include "../include.h"
+
+// Funkce Sinc
+float sinc(float x) {
+    if (x == 0.0) {
+        return 1.0;
+    }
+    return sin(x) / x;
+}
+
+// Hlavní funkce
+int main() {
+    // Inicializace zařízení
+    DeviceInit();
+
+    // Vymazání obrazovky
+    DrawClear();
+
+    // Parametry pro vykreslení
+    float scale = 20.0;
+    float z_scale = 30.0;
+    float angle = 0.5;
+
+    // Vykreslení funkce
+    for (int y = 0; y < HEIGHT; y++) {
+        for (int x = 0; x < WIDTH; x++) {
+            // Převod souřadnic obrazovky na souřadnice v 3D prostoru
+            float x_3d = (x - WIDTH / 2.0) / scale;
+            float y_3d = (y - HEIGHT / 2.0) / scale;
+
+            // Výpočet hodnoty funkce sinc
+            float r = sqrt(x_3d * x_3d + y_3d * y_3d);
+            float z = sinc(r);
+
+            // Projekce 3D bodu na 2D obrazovku
+            float screen_x = x;
+            float screen_y = y - z * z_scale;
+
+            // Vykreslení bodu s jednoduchým stínováním
+            u16 color = (u16)(128 + z * 127);
+            DrawPoint((int)screen_x, (int)screen_y, color);
+        }
+    }
+
+    // Aktualizace obrazovky
+    DispUpdate();
+
+    // Čekání na stisk klávesy
+    while (True)
+     {
+      switch (KeyGet())
+       {
+        case KEY_Y: ResetToBootLoader();
+       }   
+     }
+}
