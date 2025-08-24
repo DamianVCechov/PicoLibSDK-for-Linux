@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ $(pwd)  == "/home/$(echo $USER)/Plocha/Projekty/PicoLibSDK_for_Linux/PicoPad" ]; then
+if [ $(pwd)  == "/home/$(echo $USER)/Plocha/Projekty/PicoLibSDK/PicoPad" ]; then
    read -p "Zadejte jméno nového projektu: " GRPDIR
    read -p "Zadejte jméno nového programu: " TARGET
 
@@ -12,10 +12,10 @@ echo -e '#!/bin/bash\n\n# Compilation...\n\nexport TARGET='${TARGET}'\nexport GR
 echo -e '#!/bin/bash\n\n# Delete...\n\nexport TARGET='${TARGET}'\n\n../../../_d1.sh' > d.sh
 echo -e '#!/bin/bash\n\n# Export to hardware\n\nexport TARGET='${TARGET}'\n\n../../../_e1.sh' > e.sh
 mkdir src
-echo -e '#!/bin/bash\n\ncd..\n./c.sh\ncd src' > src/c.sh
-echo -e '#!/bin/bash\n\ncd..\n./c.sh\n./e.sh\ncd src' > src/ce.sh
-echo -e '#!/bin/bash\n\ncd..\n./d.sh\ncd src' > src/d.sh
-echo -e '#!/bin/bash\n\ncd..\n./e.sh\ncd src' > src/e.sh
+echo -e '#!/bin/bash\n\ncd ..\n./c.sh\ncd src' > src/c.sh
+echo -e '#!/bin/bash\n\ncd ..\n./c.sh\n./e.sh\ncd src' > src/ce.sh
+echo -e '#!/bin/bash\n\ncd ..\n./d.sh\ncd src' > src/d.sh
+echo -e '#!/bin/bash\n\ncd ..\n./e.sh\ncd src' > src/e.sh
 
 touch src/main.h
 touch src/main.cpp
