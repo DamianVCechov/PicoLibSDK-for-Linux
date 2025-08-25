@@ -1,8 +1,7 @@
 #!/bin/bash
 
-if [ $(pwd)  == "/home/$(echo $USER)/Plocha/Projekty/PicoLibSDK/PicoPad" ]; then
-   read -p "Zadejte jméno nového projektu: " GRPDIR
-   read -p "Zadejte jméno nového programu: " TARGET
+read -p "Zadejte jméno nového projektu: " GRPDIR
+read -p "Zadejte jméno nového programu: " TARGET
 
 mkdir -p ${GRPDIR}/${TARGET}
 cd ${GRPDIR}/${TARGET}
@@ -26,7 +25,4 @@ echo -e '# ASM source files\nASRC +=\n\n# C source files\nCSRC +=\n\n# C++ sourc
 
 find . -name '*.sh' -exec chmod +x {} +
 
-  echo "OK :)"
-else
-  echo "Jsi ve špatné složce! Projekt musí být ve složce ../PicoLibSDK/PicoPad/!"
-fi
+echo "OK :)"
