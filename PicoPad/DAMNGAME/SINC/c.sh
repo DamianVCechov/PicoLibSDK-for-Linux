@@ -3,6 +3,6 @@
 # Compilation...
 
 export TARGET=SINC
-export GRPDIR=DAMIAN_EXAMPLES
+export GRPDIR=DAMNGAME
 
 ../../../_c1.sh "$1"

@@ -384,13 +384,13 @@ int main()
 	UsbHostInit();
 
 	// get path with samples
-	k = GetHomePath(SampPath, "/EMU_TEST");
+	k = GetHomePath(SampPath, "/_M6502");        // EMU_TEST");
 	if (SampPath[k-1] != PATHCHAR)
 	{
 		SampPath[k] = PATHCHAR;
 		k++;
 	}
-	memcpy(SampPath+k, "_M6502", 7);
+	memcpy(SampPath+k, "", 0);
 
 	// initialize output to speaker
 #ifdef PWMSND_GPIO 	// PWM output GPIO pin (0..29)
