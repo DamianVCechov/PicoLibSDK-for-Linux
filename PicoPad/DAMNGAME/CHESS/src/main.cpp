@@ -1,5 +1,8 @@
 /* 
- *                  Code revised and fixed by DamianVCechov
+ *                   Autor: ing. Miroslav Nemecek @NemecekPanda38
+ *
+ *                   Code revised and fixed by DamianVCechov 2025
+ *
 */
 
 // ****************************************************************************
@@ -500,9 +503,9 @@ Bool TestCheck()
 			if ((piece & COLORMASK) == player_color) break;
 			
             /************************************************************
-             *                                                          *
-             *   !!! FINALLY, NOW THE "piece" IS THE REALLY ENEMY !!!   *
-             *                                                          *
+             * *
+             * !!! FINALLY, NOW THE "piece" IS THE REALLY ENEMY !!!   *
+             * *
              ************************************************************/
 
 			piece &= PIECEMASK;
@@ -955,6 +958,80 @@ void MoveComp()
 	}
 }
 
+// show menu for pawn promotion
+u8 SelectPromotionPiece()
+{
+	const int menu_w = 160;
+	const int menu_h = 120;
+	const int menu_x = (WIDTH - menu_w) / 2;
+	const int menu_y = (HEIGHT - menu_h) / 2;
+	const int item_h = 20;
+
+	const char* items[] = { "Queen", "Knight", "Bishop", "Rook" };
+	int num_items = 4;
+	int selection = 0;
+	char ch;
+
+	pDrawFont = FontBold8x16;
+	DrawFontHeight = 16;
+	DrawFontWidth = 8;
+	
+	KeyFlush();
+
+	while(True)
+	{
+		// Draw menu background
+		DrawRect(menu_x, menu_y, menu_w, menu_h, COL_BLACK);
+		DrawRect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, COL_WHITE);
+		DrawRect(menu_x + 2, menu_y + 2, menu_w - 4, menu_h - 4, COL_BLACK);
+        DrawTextBg("Pawn promotion", menu_x + (menu_w - 14 * 8) / 2, menu_y + 10, COL_YELLOW, COL_BLACK);
+
+		// Draw items
+		for (int i = 0; i < num_items; i++)
+		{
+	    	u16 text_col = COL_WHITE;
+	    	u16 bg_col = COL_BLACK;
+            int len = StrLen(items[i]);
+            
+            // cursor
+			if (i == selection)
+			{
+				text_col = COL_BLACK;
+				bg_col = COL_YELLOW;
+			}
+			DrawTextBg(items[i], menu_x + (menu_w - len * 8) / 2, menu_y + 32 + i * item_h, text_col, bg_col);
+		}
+		DispUpdate();
+
+		ch = KeyGet();
+		switch(ch)
+		{
+			case KEY_UP:
+				selection--;
+				if (selection < 0) selection = num_items - 1;
+				break;
+			
+			case KEY_DOWN:
+				selection++;
+				if (selection >= num_items) selection = 0;
+				break;
+
+			case KEY_A:
+				switch(selection)
+				{
+					case 0: return QUEEN;
+					case 1: return KNIGHT;
+					case 2: return BISHOP;
+					case 3: return ROOK;
+				}
+				break;
+			
+			case KEY_Y: // quit from selection
+				return QUEEN; // Default to Queen on cancel
+		}
+	}
+}
+
 // move human player (returns True = quit game)
 Bool MoveHuman()
 {
@@ -1242,17 +1319,48 @@ MOVE_AGAIN:
 	// return piece on original position
 	if (p->curpos == oldpos) goto MOVE_AGAIN;
 
-// @TODO: Add the option of choosing a piece changed from a pawn! Now the default queen is left.
+	// Check if this is a promotion move
+	bool is_promotion = false;
+	m = &MoveStack[MoveStackStart[0]];
+	for (i = 0; i < MoveStackNum[0]; i++)
+	{
+		if ((m[i].src == oldpos) && (m[i].dst == p->curpos) && (m[i].flags == MOVEFLAG_QUEEN))
+		{
+			is_promotion = true;
+			break;
+		}
+	}
+
+	u8 promoted_piece_type = QUEEN; // Default to queen
+	if (is_promotion)
+	{
+		promoted_piece_type = SelectPromotionPiece();
+		DispBoard(); // Redraw board after menu is closed
+		DispUpdate();
+	}
 
 	// search move
 	m = &MoveStack[MoveStackStart[0]];
 	for (i = MoveStackNum[0]; i > 0; i--)
 	{
-		if ((m->src == oldpos) && (m->dst == p->curpos) &&
-			((m->flags != MOVEFLAG_QUEEN) || ((m->extra & PIECEMASK) == QUEEN)))
+		if ((m->src == oldpos) && (m->dst == p->curpos))
 		{
-			DoMoveDisp(m);
-			break;
+			if (m->flags == MOVEFLAG_QUEEN) // It's a promotion move
+            {
+                if ((m->extra & PIECEMASK) == promoted_piece_type)
+                {
+                    DoMoveDisp(m);
+                    break;
+                }
+            }
+            else // It's a normal move, and we ensure we are not trying to make a promotion
+            {
+				if (!is_promotion)
+				{
+                	DoMoveDisp(m);
+                	break;
+				}
+            }
 		}
 		m++;
 	}
