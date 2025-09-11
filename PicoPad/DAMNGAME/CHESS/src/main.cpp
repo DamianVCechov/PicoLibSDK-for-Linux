@@ -963,8 +963,8 @@ u8 SelectPromotionPiece()
 {
 	const int menu_w = 160;
 	const int menu_h = 120;
-	const int menu_x = (WIDTH - menu_w) / 2;
-	const int menu_y = (HEIGHT - menu_h) / 2;
+	const int menu_x = (BOARDW - menu_w) / 2;
+	const int menu_y = (BOARDH - menu_h) / 2;
 	const int item_h = 20;
 
 	const char* items[] = { "Queen", "Knight", "Bishop", "Rook" };
