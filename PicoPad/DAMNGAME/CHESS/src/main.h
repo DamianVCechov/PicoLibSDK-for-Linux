@@ -5,7 +5,6 @@
 //
 // ****************************************************************************
 // The names of chess pieces are: pawn, knight, bishop, rook, queen and king.
-
 #ifndef _MAIN_H
 #define _MAIN_H
 
@@ -47,6 +46,15 @@ EXTRA (6 forward moves, 1 hour)
 
 #define FRAMECOL	COLOR(200, 0, 0) // border color
 #define LEGENDCOL	COL_WHITE // frame text color
+
+// info window
+#define WIN_X	(FRAME)
+#define WIN_Y	(FRAME)
+#define WIN_W	(240 - 2 * FRAME)
+#define WIN_H	(140)
+#define WIN_FRAME   COL_YELLOW
+#define WIN_BGCOL	COL_BLUE
+#define WIN_COL	    COL_YELLOW
 
 // piece indices
 #define EMPTY	0	// empty field (or black pawn)
@@ -107,5 +115,4 @@ typedef struct {
 extern const u16 PiecesImg_Pal[16] __attribute__ ((aligned(4)));
 extern const u8 PiecesImg[21952] __attribute__ ((aligned(4)));
 #define PIECESIMGW	196	// width of image
-
 #endif // _MAIN_H

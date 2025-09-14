@@ -3,15 +3,13 @@
  *
  *      Revised, fixed, new functions and new bugs :-) :  @DamianVCechov 2025
  *                                   
- *                                   version 1.05
+ *                                   version 1.03
  *
  *                                     CHANGES:
  *
  *               1.01 fixed castling
  *               1.02 revised and extension of valid moves control
- *               1.03 add pawn promotion
- *               1.04 add function UNDO and history moves
- *               1.05 add info display with look in a head MCU
+ *               1.03 add pawn promotion = First really playable version :-)
  *
  *
 */
@@ -35,15 +33,9 @@ u8 PlayerView;
 // available moves
 Bool BoardEnable[MAPSIZE];
 
-// display info window
-Bool InfoWindow = False;
-Bool CloseWindow = False;
-
 // game board with border (order of fields: from field A1 to field H8)
 u8 Board[MAPSIZE];
 
-u16 EvaluatedPositions;
-sMove PrincipalVariation[DEEP_MAX];
 
 //#ifdef DEBUG_STACK	// debug flag - display stack max. depth
 //int MoveStackTopMax; // number of entries
@@ -53,8 +45,7 @@ sMove PrincipalVariation[DEEP_MAX];
 sMove MoveStack[STACK_MAX];
 int MoveStackTop; // number of entries
 const sMove* LastMove; // last move (NULL = check-mat)
-sMove GameHistory[STACK_MAX]; // Game History
-int GameHistoryTop;
+
 // start entries and number of entries in move stack
 int MoveStackStart[DEEP_MAX]; // start indices
 int MoveStackNum[DEEP_MAX]; // number of moves in one deep level
@@ -63,7 +54,6 @@ u8 MovePassantPiece[DEEP_MAX+1]; // position of piece to En Passant (0 = invalid
 u8 MovePassantPos[DEEP_MAX+1]; // capture position of piece to En Passant (0 = invalid)
 int MoveDeep; // current deep in move stack
 int DeepMax;
-
 
 // player
 u8 Player;	// current player (WHITE_PLAYER or BLACK_PLAYER)
@@ -164,113 +154,6 @@ void OutText(const pText* txt)
 	DispUpdate();
 	TextRows++;
 }
-
-// Format move to text string
-void FormatTextMove(const sMove* m, pText* txt)
-{
-	int row, col;
-	TextEmpty(txt);
-
-	if (m->src == 0) return; // null
-
-	// castling
-	if (m->flags == MOVEFLAG_SMALL)
-	{
-		TextAddStr(txt, "O-O");
-	}
-	else if (m->flags == MOVEFLAG_BIG)
-	{
-		TextAddStr(txt, "O-O-O");
-	}
-	else
-	{
-		// resource Field (2 characters)
-		row = m->src / 10;
-		col = m->src - row*10;
-		TextAddCh(txt, col+'a'-1);
-		TextAddCh(txt, row+'1'-2);
-
-		// delimiter (1 character)
-		TextAddCh(txt, (m->dstpiece != EMPTY || m->flags == MOVEFLAG_EP) ? 'x' : '-');
-
-		// target field (2 characters)
-		row = m->dst / 10;
-		col = m->dst - row*10;
-		TextAddCh(txt, col+'a'-1);
-		TextAddCh(txt, row+'1'-2);
-
-		// pawn promotion
-		if (m->flags == MOVEFLAG_QUEEN)
-		{
-			TextAddCh(txt, '=');
-			u8 piece = m->extra & PIECEMASK;
-			if (piece == QUEEN) TextAddCh(txt, 'Q');
-			else if (piece == ROOK) TextAddCh(txt, 'R');
-			else if (piece == BISHOP) TextAddCh(txt, 'B');
-			else if (piece == KNIGHT) TextAddCh(txt, 'N');
-		}
-	}
-}
-
-// display info window
-void DisplayInfo()
-{
-	if (InfoWindow == True)
-	{
-		pText txt;
-		TextInit(&txt);
-		char buf[40]; // local buffer for text
-
-		// background window + frame
-		DrawRect(WIN_X, WIN_Y, WIN_W, WIN_H+1, WIN_FRAME);
-		DrawRect(WIN_X+1, WIN_Y+1, WIN_W-2, WIN_H-1, WIN_BGCOL);
-
-    	// display headline
-    	DrawText(" Chess", (WIN_W - 5 * 8) / 2, WIN_Y + 5, WIN_COL);
-
-		// display deep
-		TextSetStr(&txt, "Deep: ");
-		TextAddInt(&txt, MoveDeep + 1, 0);
-		TextAddCh(&txt, '/');
-		TextAddInt(&txt, DeepMax, 0);
-		memcpy(buf, TextPtr(&txt), TextLen(&txt));
-		buf[TextLen(&txt)] = 0;
-		DrawText(buf, WIN_X + 5, WIN_Y + 25, WIN_COL);
-
-		// display positions
-		TextSetStr(&txt, "Positions: ");
-		TextAddUInt(&txt, EvaluatedPositions, 0);
-		memcpy(buf, TextPtr(&txt), TextLen(&txt));
-		buf[TextLen(&txt)] = 0;
-		DrawText(buf, WIN_X + 5, WIN_Y + 45, WIN_COL);
-
-		// display a main variant
-		DrawText("Variant:", WIN_X + 5, WIN_Y + 65, WIN_COL);
-	
-		TextEmpty(&txt);
-		int i;
-		for (i = 0; i < DeepMax; i++)
-		{
-			if (PrincipalVariation[i].src == 0) break;
-		
-			pText move_txt;
-			TextInit(&move_txt);
-			FormatTextMove(&PrincipalVariation[i], &move_txt);
-			if ((TextLen(&txt) + TextLen(&move_txt) + 1) >= sizeof(buf)) break;
-			TextAddStr(&txt, TextPtr(&move_txt));
-			TextAddCh(&txt, ' ');
-			TextTerm(&move_txt);
-		}
-	
-		memcpy(buf, TextPtr(&txt), TextLen(&txt));
-    	buf[TextLen(&txt)] = 0;
-		DrawText(buf, WIN_X + 5, WIN_Y + 85, WIN_COL);
-
-		DispUpdate();
-		TextTerm(&txt);
-	}
-}
-
 
 // get piece from board (returns BORDER on invalid coordinates)
 INLINE u8 GetPiece(u8 inx) { return Board[inx]; }
@@ -389,29 +272,6 @@ void DispBoard()
 	for (i = 0; i < MAPSIZE; i++) DispField(i, 0, 0, False, False);
 }
 
-// display info call (toggle info window with A+UP)
-void DispInfoCall()
-{
-	if (KeyPressed(KEY_A) && KeyPressed(KEY_UP)) 
-	{
-		InfoWindow = !InfoWindow;
-		if (!InfoWindow) CloseWindow = True;
-		KeyFlush();
-		WaitMs(500);
-	}
-	if (InfoWindow == True) DisplayInfo();
-	else
-	{ 
-		// close info window
-		if (CloseWindow)
-		{
-			DispBoard();
-			DispUpdate();
-			CloseWindow = False;
-		}
-	}
-}
-
 // start new game
 void NewGame()
 {
@@ -421,8 +281,6 @@ void NewGame()
 	MoveNum = 1; // move counter
 	Player = WHITE_PLAYER; // white is playing first
 	MoveStackTop = 0; // clear move stack
-
-	GameHistoryTop = 0;
 //#ifdef DEBUG_STACK	// debug flag - display stack max. depth
 //	MoveStackTopMax = 0; // number of entries
 //#endif
@@ -607,12 +465,6 @@ void DoMoveDisp(const sMove* m)
 
 	DispBoard();
 	DispUpdate();
-
-   	if (GameHistoryTop < STACK_MAX)
-	{
-		GameHistory[GameHistoryTop] = *m;
-		GameHistoryTop++;
-	}
 }
 
 // test whether king of current player is in check
@@ -656,10 +508,14 @@ Bool TestCheck()
 				continue;
 			}
 
-            // check color - piece of same color covers the king
+			// check color - piece of same color covers the king
 			if ((piece & COLORMASK) == player_color) break;
 			
-            // !!! FINALLY, NOW THE "piece" IS THE REALLY ENEMY !!!
+            /************************************************************
+             * *
+             * !!! FINALLY, NOW THE "piece" IS THE REALLY ENEMY !!!   *
+             * *
+             ************************************************************/
 
 			piece &= PIECEMASK;
 
@@ -972,7 +828,6 @@ sMove* MoveCompLevel()
 	int deep = MoveDeep;
 	int top;
 	sMove *m, *m2;
-    s16 best_val = -32000;
 
 	// search moves at this level
 	SearchMoves(deep);
@@ -995,9 +850,7 @@ sMove* MoveCompLevel()
 		m = &MoveStack[MoveStackStart[deep]];
 		for (; i > 0; i--)
 		{
-            EvaluatedPositions++;
-
-			// save en passant
+			// save En Passant position
 			MovePassantPiece[deep+1] = 0;
 			MovePassantPos[deep+1] = 0;
 			if ((m->srcpiece & (PIECEMASK | MOVEMASK)) == (PAWN | NOMOVING))
@@ -1010,7 +863,7 @@ sMove* MoveCompLevel()
 				}
 			}
 
-
+			// do this move
 			DoMove(m);
 
 			// change player
@@ -1020,20 +873,12 @@ sMove* MoveCompLevel()
 			// search sub-moves
 			m2 = MoveCompLevel();
 
-			// no move, checkmate or pat
+			// no move, checkmat or pat
 			if (m2 == NULL)
 				m->val += VAL_WIN;
 			else
 				// add move value
 				m->val -= m2->val;
-
-            // update main variant
-            if (m->val > best_val)
-            {
-                best_val = m->val;
-                PrincipalVariation[deep] = *m;			
-				// recurse
-            }
 
 			// restore state
 			MoveStackTop = top;
@@ -1043,9 +888,6 @@ sMove* MoveCompLevel()
 
 			// undo this move
 			UndoMove(m);
-
-			// display info window
-			DispInfoCall();
 
 			// next move
 			m++;
@@ -1092,10 +934,7 @@ sMove* MoveCompLevel()
 		}		
 		m++;
 	}
-	
-    // save main variant
-    PrincipalVariation[deep] = *m;
-
+		
 	return m;
 }
 
@@ -1113,9 +952,6 @@ void MoveComp()
 	// prepare all possible moves
 	MoveDeep = 0;
 	MoveStackTop = 0;
-
-    EvaluatedPositions = 0;
-    memset(PrincipalVariation, 0, sizeof(PrincipalVariation));
 
 //#ifdef DEBUG_STACK	// debug flag - display stack max. depth
 //	MoveStackTopMax = 0; // number of entries
@@ -1157,7 +993,7 @@ u8 SelectPromotionPiece()
 		DrawRect(menu_x, menu_y, menu_w, menu_h, COL_BLACK);
 		DrawRect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, COL_WHITE);
 		DrawRect(menu_x + 2, menu_y + 2, menu_w - 4, menu_h - 4, COL_BLACK);
-        DrawText("Pawn promotion", menu_x + (menu_w - 14 * 8) / 2, menu_y + 10, COL_YELLOW);
+        DrawTextBg("Pawn promotion", menu_x + (menu_w - 14 * 8) / 2, menu_y + 10, COL_YELLOW, COL_BLACK);
 
 		// Draw items
 		for (int i = 0; i < num_items; i++)
@@ -1205,70 +1041,7 @@ u8 SelectPromotionPiece()
 	}
 }
 
-void RestoreEnPassantStateAfterUndo()
-{
-    // clear En Passant state
-    MovePassantPiece[0] = 0;
-    MovePassantPos[0] = 0;
-
-    // recalculate based on the new last move
-    if (GameHistoryTop > 0)
-    {
-        const sMove* prev_move = &GameHistory[GameHistoryTop - 1];
-
-        // check if the previous move was a pawn's first
-        if ((prev_move->srcpiece & PIECEMASK) == PAWN && (prev_move->srcpiece & MOVEMASK) == NOMOVING)
-        {
-            int diff = prev_move->dst - prev_move->src;
-            if (diff == 20 || diff == -20)
-            {
-                MovePassantPiece[0] = prev_move->dst;     // Position of the pawn
-                MovePassantPos[0] = prev_move->src + diff / 2; // Capturable square
-            }
-        }
-    }
-}
-
-void UndoPlayerMove()
-{
-    if (GameHistoryTop == 0) return;
-
-    // In a Player vs Comp game, undo both the player's and the computer's move.
-    // In a Player vs Player or Comp vs Comp game, undo only one move.
-    int moves_to_undo = 1;
-    if (Players[0].comp != Players[1].comp && GameHistoryTop >= 2)
-    {
-        moves_to_undo = 2;
-    }
-
-    for (int i = 0; i < moves_to_undo; i++)
-    {
-        if (GameHistoryTop == 0) break;
-
-        GameHistoryTop--;
-        const sMove* m = &GameHistory[GameHistoryTop];
-
-        Player ^= 1;
-
-        if (Player == WHITE_PLAYER)
-        {
-            if (MoveNum > 1) MoveNum--;
-        }
-
-        // Undo the move on the board
-        UndoMove(m);
-
-        // Remove the move from the text log display
-        if (TextRows > 0)
-        {
-            TextRows--;
-            memset(&TextBuf[TextRows * TEXTW], ' ', TEXTW);
-        }
-    }
-    RestoreEnPassantStateAfterUndo();
-}
-
-// moved human player (returns True = quit game)
+// move human player (returns True = quit game)
 Bool MoveHuman()
 {
 	u32 t;
@@ -1361,13 +1134,6 @@ MOVE_AGAIN:
 			if (ok) sel = True;
 			break;
 
-		case KEY_B:
-			UndoPlayerMove();
-			// Redraw everything and recalculate moves
-            DispFrame();
-			SearchMoves(0);
-			goto MOVE_AGAIN;
-
 		case KEY_LEFT:
 			DispField(p->curpos, 0, 0, False, False);
 			p->curpos--;
@@ -1410,9 +1176,6 @@ MOVE_AGAIN:
 			return True; // quit game
 		}
 		if (sel) break;
-
-		// display info window
-		DispInfoCall();
 
 		// redraw board
 		DispUpdate();
@@ -1565,7 +1328,6 @@ MOVE_AGAIN:
 	// return piece on original position
 	if (p->curpos == oldpos) goto MOVE_AGAIN;
 
-
 	// Check if this is a promotion move
 	bool is_promotion = false;
 	m = &MoveStack[MoveStackStart[0]];
@@ -1592,19 +1354,22 @@ MOVE_AGAIN:
 	{
 		if ((m->src == oldpos) && (m->dst == p->curpos))
 		{
-			if (m->flags == MOVEFLAG_QUEEN)
-			{
-				if ((m->extra & PIECEMASK) == promoted_piece_type)
+			if (m->flags == MOVEFLAG_QUEEN) // It's a promotion move
+            {
+                if ((m->extra & PIECEMASK) == promoted_piece_type)
+                {
+                    DoMoveDisp(m);
+                    break;
+                }
+            }
+            else // It's a normal move, and we ensure we are not trying to make a promotion
+            {
+				if (!is_promotion)
 				{
-					DoMoveDisp(m);
-					break;
+                	DoMoveDisp(m);
+                	break;
 				}
-			}
-			else
-			{
-				DoMoveDisp(m);
-				break;
-			}
+            }
 		}
 		m++;
 	}
@@ -1628,6 +1393,7 @@ void Open()
 #define MENUX 30
 
 	DrawText("Select:", MENUX, 70, COL_WHITE);
+
 	DrawText("LEFT .... Play with white", MENUX, 105, COL_WHITE);
 	DrawText("RIGHT ... Play with black", MENUX, 125, COL_WHITE);
 	DrawText("DOWN .... Play 2 players", MENUX, 145, COL_WHITE);
@@ -1738,12 +1504,10 @@ int main()
 			{
 				TextAddStr(&txt, "O-O");
 			}
-
 			else if (LastMove->flags == MOVEFLAG_BIG)
 			{
 				TextAddStr(&txt, "O-O-O");
 			}
-
 			else
 			{
 				// set source field (2 chars)
@@ -1766,7 +1530,7 @@ int main()
 
 				// En Passant
 				if (LastMove->flags == MOVEFLAG_EP) TextAddStr(&txt, "e");
-			}
+			}	
 
 			// display move
 			OutText(&txt);
