@@ -8,7 +8,7 @@ Chess game
 ^WDOWN^0 .... down
 ^WA^0 ....... pick up
 ^WB^0 ....... cancel/back
-^WA^0+^WUP^0. info
+^WA^0+^WUP^0 ... info
 ^WX^0 ....... help
 ^WY^0 ....... quit
 

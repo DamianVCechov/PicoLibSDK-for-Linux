@@ -406,7 +406,7 @@ void DispInfoCall()
 	else
 	{ 
 		// close info window
-		if (CloseWindow)
+		if (CloseWindow == True)
 		{
 			DispBoard();
 			DispUpdate();
