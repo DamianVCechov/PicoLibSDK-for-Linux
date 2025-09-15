@@ -11,7 +11,7 @@
  *               1.02 revised and extension of valid moves control
  *               1.03 add pawn promotion
  *               1.04 add function UNDO and history moves
- *               1.05 add info display with look in a head MCU
+ *               1.05 add info window with look in a head MCU
  *
  *
 */
