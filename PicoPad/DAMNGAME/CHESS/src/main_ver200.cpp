@@ -3,7 +3,7 @@
  *
  *      Revised, fixed, new functions and new bugs :-) :  @DamianVCechov 2025
  *                                   
- *                                   version 1.08
+ *                                   version 2.00
  *
  *                                     CHANGES:
  *
@@ -15,6 +15,8 @@
  *               1.06 slower refresh info window
  *               1.07 fixed notation of moves - captured piece
  *               1.08 fixing the display of the infowindow at deep 5 (choice Superpro)
+ *               2.00 add experimentaly very simple alfa-beta pruning
+ *               
  *
 */
 
@@ -994,15 +996,14 @@ void SearchMoves(s16 val)
 }
 
 // find computer move on one level (returns best move, NULL = not found)
-sMove* MoveCompLevel()
+sMove* MoveCompLevel(s16 alpha, s16 beta)
 {
 	int deep = MoveDeep;
 	int top;
 	sMove *m, *m2;
-    s16 best_val = -32000;
 
 	// search moves at this level
-	SearchMoves(deep);
+	SearchMoves(0);
 
 	// number of moves
 	int i = MoveStackNum[deep];
@@ -1032,11 +1033,10 @@ sMove* MoveCompLevel()
 				int dif = m->dst - m->src;
 				if ((dif == 20) || (dif == -20))
 				{
-					MovePassantPiece[deep+1] = m->dst; // destination position of pawn
-					MovePassantPos[deep+1] = m->src + dif/2; // capture position
+					MovePassantPiece[deep+1] = m->dst;
+					MovePassantPos[deep+1] = m->src + dif/2;
 				}
 			}
-
 
 			DoMove(m);
 
@@ -1044,35 +1044,35 @@ sMove* MoveCompLevel()
 			Player ^= 1;
 			top = MoveStackTop;
 
-			// search sub-moves
-			m2 = MoveCompLevel();
+			m2 = MoveCompLevel(-beta, -alpha);
 
 			// no move, checkmate or pat
 			if (m2 == NULL)
 				m->val += VAL_WIN;
 			else
-				// add move value
 				m->val -= m2->val;
 
-            // update main variant
-            if (m->val > best_val)
+            if (m->val > alpha)
             {
-                best_val = m->val;
-                PrincipalVariation[deep] = *m;			
-				// recurse
+                alpha = m->val;
+                PrincipalVariation[deep] = *m;
             }
 
 			// restore state
 			MoveStackTop = top;
-
-			// change player
 			Player ^= 1;
-
-			// undo this move
 			UndoMove(m);
 
 			// display info window
 			DispInfoCall();
+
+            if (DeepMax >= 4)
+            {
+                if (alpha >= beta)
+                {
+                    break; // PRUNING!
+                }
+            }
 
 			// next move
 			m++;
@@ -1092,7 +1092,6 @@ sMove* MoveCompLevel()
 	// check moves
 	for (; i > 0; i--)
 	{
-		// check value
 		if (m->val == bestval)
 			bestnum++;
 		else if (m->val > bestval)
@@ -1100,8 +1099,6 @@ sMove* MoveCompLevel()
 			bestnum = 1;
 			bestval = m->val;
 		}
-
-		// next move
 		m++;
 	}
 
@@ -1149,7 +1146,7 @@ void MoveComp()
 //#endif
 
 	// search move
-	sMove* m = MoveCompLevel();
+    sMove* m = MoveCompLevel(-32000, 32000);
 	LastMove = m;
 
 	if (m != NULL)
@@ -1701,8 +1698,15 @@ void Open()
 			DrawTextBg("ADVANCED", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
 		else if (DeepMax == 4)
 			DrawTextBg("PRO     ", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
-		else
+		else if (DeepMax == 5)
 			DrawTextBg("SUPERPRO", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
+        else if (DeepMax == 6)
+			DrawTextBg("DEPTH 6 ", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
+        else if (DeepMax == 7)
+			DrawTextBg("DEPTH 7 ", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
+        else
+            DrawTextBg("DEPTH 8 ", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
+
 
 		DispUpdate();
 	}

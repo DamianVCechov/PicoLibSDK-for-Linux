@@ -1,11 +1,11 @@
 /*
- *                   Author: ing. Miroslav Nemecek @NemecekPanda38
+ *                          Author: ing. Miroslav Nemecek @NemecekPanda38
  *
- *      Revised, fixed, new functions and new bugs :-) :  @DamianVCechov 2025
+ *               Fixed, patches, new functions and new bugs :-) :  @DamianVCechov 2025
  *                                   
- *                                   version 1.08
+ *                                          version 2.01
  *
- *                                     CHANGES:
+ *                                             CHANGES:
  *
  *               1.01 fixed castling
  *               1.02 revised and extension of valid moves control
@@ -14,7 +14,10 @@
  *               1.05 add info window with look in a head MCU
  *               1.06 slower refresh info window
  *               1.07 fixed notation of moves - captured piece
- *               1.08 fixing the display of the infowindow at deep 5 (choice Superpro)
+ *               1.08 fixing the display of the infowindow at deep 5 (choice Superpro)               
+ *               2.00 add experimentaly very simple alfa-beta pruning
+ *               2.01 add time limit on CPU move
+ *               
  *
 */
 
@@ -65,6 +68,9 @@ u8 MovePassantPiece[DEEP_MAX+1]; // position of piece to En Passant (0 = invalid
 u8 MovePassantPos[DEEP_MAX+1]; // capture position of piece to En Passant (0 = invalid)
 int MoveDeep; // current deep in move stack
 int DeepMax;
+
+u32 TimeMax;    // Time limit on move MAX (0 = unlimited )
+u32 MoveStartTime;  // Time start move 
 
 
 // player
@@ -994,15 +1000,14 @@ void SearchMoves(s16 val)
 }
 
 // find computer move on one level (returns best move, NULL = not found)
-sMove* MoveCompLevel()
+sMove* MoveCompLevel(s16 alpha, s16 beta)
 {
 	int deep = MoveDeep;
 	int top;
 	sMove *m, *m2;
-    s16 best_val = -32000;
 
 	// search moves at this level
-	SearchMoves(deep);
+	SearchMoves(0);
 
 	// number of moves
 	int i = MoveStackNum[deep];
@@ -1022,6 +1027,12 @@ sMove* MoveCompLevel()
 		m = &MoveStack[MoveStackStart[deep]];
 		for (; i > 0; i--)
 		{
+            // control time
+            if (TimeMax > 0 && (Time() - MoveStartTime >= (u64)TimeMax * 1000))
+            {
+                break;
+            }
+
             EvaluatedPositions++;
 
 			// save en passant
@@ -1032,11 +1043,10 @@ sMove* MoveCompLevel()
 				int dif = m->dst - m->src;
 				if ((dif == 20) || (dif == -20))
 				{
-					MovePassantPiece[deep+1] = m->dst; // destination position of pawn
-					MovePassantPos[deep+1] = m->src + dif/2; // capture position
+					MovePassantPiece[deep+1] = m->dst;
+					MovePassantPos[deep+1] = m->src + dif/2;
 				}
 			}
-
 
 			DoMove(m);
 
@@ -1044,35 +1054,38 @@ sMove* MoveCompLevel()
 			Player ^= 1;
 			top = MoveStackTop;
 
-			// search sub-moves
-			m2 = MoveCompLevel();
+			m2 = MoveCompLevel(-beta, -alpha);
 
 			// no move, checkmate or pat
 			if (m2 == NULL)
 				m->val += VAL_WIN;
 			else
-				// add move value
 				m->val -= m2->val;
 
-            // update main variant
-            if (m->val > best_val)
+            // update main variant in alphabeta
+            if (m->val > alpha)
             {
-                best_val = m->val;
-                PrincipalVariation[deep] = *m;			
-				// recurse
+                alpha = m->val;
+                PrincipalVariation[deep] = *m;
             }
 
 			// restore state
 			MoveStackTop = top;
-
-			// change player
 			Player ^= 1;
-
-			// undo this move
 			UndoMove(m);
 
 			// display info window
 			DispInfoCall();
+
+            // If maximum set depth is ALPHABETA_DEEP or more, use pruning.
+            if (DeepMax >= ALPHABETA_DEEP)
+            {
+                // alpha-beta pruning 
+                if (alpha >= beta)
+                {
+                    break;
+                }
+            }
 
 			// next move
 			m++;
@@ -1092,7 +1105,6 @@ sMove* MoveCompLevel()
 	// check moves
 	for (; i > 0; i--)
 	{
-		// check value
 		if (m->val == bestval)
 			bestnum++;
 		else if (m->val > bestval)
@@ -1100,8 +1112,6 @@ sMove* MoveCompLevel()
 			bestnum = 1;
 			bestval = m->val;
 		}
-
-		// next move
 		m++;
 	}
 
@@ -1136,6 +1146,9 @@ void MoveComp()
 		DoMoveDisp(m);
 		return;
 	}
+    
+    // start time
+    MoveStartTime = Time();
 
 	// prepare all possible moves
 	MoveDeep = 0;
@@ -1149,7 +1162,7 @@ void MoveComp()
 //#endif
 
 	// search move
-	sMove* m = MoveCompLevel();
+    sMove* m = MoveCompLevel(-32000, 32000);
 	LastMove = m;
 
 	if (m != NULL)
@@ -1650,7 +1663,7 @@ void Open()
 	DrawFontWidth = 8;
 
 	DrawClear();
-	DrawText2("CHESS", (WIDTH - 5*16)/2, 20, COL_YELLOW);
+	DrawText2("CHESS ver 2", (WIDTH - 11*16)/2, 20, COL_YELLOW);
 
 #define MENUX 30
 
@@ -1660,6 +1673,7 @@ void Open()
 	DrawText("DOWN .... Play 2 players", MENUX, 145, COL_WHITE);
 	DrawText("UP ...... Demo", MENUX, 165, COL_WHITE);
 	DrawText("A ....... Select level:", MENUX, 195, COL_WHITE);
+    DrawText("B ....... Limit on move:", MENUX, 215, COL_WHITE);
 
 	KeyFlush();
 	for (;;)
@@ -1691,6 +1705,20 @@ void Open()
 			DeepMax++;
 			if (DeepMax > DEEP_MAX) DeepMax = 2;
 			break;
+            
+        case KEY_B:
+            if (TimeMax == 0) TimeMax = 2000;
+            else if (TimeMax == 2000)    TimeMax =    5000;
+            else if (TimeMax == 5000)    TimeMax =   10000;
+            else if (TimeMax == 10000)   TimeMax =   30000;
+            else if (TimeMax == 30000)   TimeMax =   60000;
+            else if (TimeMax == 60000)   TimeMax =  120000;
+            else if (TimeMax == 120000)  TimeMax =  300000;
+            else if (TimeMax == 300000)  TimeMax =  600000;
+            else if (TimeMax == 600000)  TimeMax = 1800000;
+            else if (TimeMax == 1800000) TimeMax = 3600000;
+            else TimeMax = 0;
+            break;
 
 		case KEY_Y: ResetToBootLoader();
 		}
@@ -1701,10 +1729,40 @@ void Open()
 			DrawTextBg("ADVANCED", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
 		else if (DeepMax == 4)
 			DrawTextBg("PRO     ", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
-		else
+		else if (DeepMax == 5)
 			DrawTextBg("SUPERPRO", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
+        else if (DeepMax == 6)
+			DrawTextBg("DEPTH 6 ", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
+        else if (DeepMax == 7)
+			DrawTextBg("DEPTH 7 ", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
+        else
+            DrawTextBg("DEPTH 8 ", MENUX+24*8, 195, COL_WHITE, COL_BLACK);
 
-		DispUpdate();
+        if (TimeMax == 0)
+            DrawTextBg("INFINITY", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else if (TimeMax == 2000)
+            DrawTextBg(" 2 SEC  ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else if (TimeMax == 5000)
+            DrawTextBg(" 5 SEC  ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else if (TimeMax == 10000)
+            DrawTextBg("10 SEC  ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else if (TimeMax == 30000)
+            DrawTextBg("30 SEC  ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else if (TimeMax == 60000)
+            DrawTextBg(" 1 MIN  ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else if (TimeMax == 120000)
+            DrawTextBg(" 2 MIN  ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else if (TimeMax == 300000)
+            DrawTextBg(" 5 MIN  ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else if (TimeMax == 600000)
+            DrawTextBg("10 MIN  ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else if (TimeMax == 1800000)
+            DrawTextBg("30 MIN  ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+        else
+            DrawTextBg(" 1 HOUR ", MENUX+25*8, 215, COL_WHITE, COL_BLACK);
+
+
+    	DispUpdate();
 	}
 }
 
@@ -1715,6 +1773,7 @@ int main()
 	int i, row, col;
 
 	DeepMax = 4;
+    TimeMax = 0; // Výchozí hodnota (bez limitu)
 
 	while (True)
 	{

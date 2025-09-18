@@ -99,14 +99,15 @@ typedef struct {
 #define VAL_WIN		10000	// winning value
 
 // move flags
-#define MOVEFLAG_NORMAL		0	// normal move
-#define MOVEFLAG_QUEEN		1	// change pawn to queen (= piecenew)
-#define MOVEFLAG_SMALL		2	// make small castle
-#define MOVEFLAG_BIG		3	// make big castle
-#define MOVEFLAG_EP		4	// en passant privilege
+#define MOVEFLAG_NORMAL		0   // normal move
+#define MOVEFLAG_QUEEN		1   // change pawn to queen (= piecenew)
+#define MOVEFLAG_SMALL		2   // make small castle
+#define MOVEFLAG_BIG		3   // make big castle
+#define MOVEFLAG_EP 		4   // en passant privilege
 
-#define STACK_MAX	500	// max. size of move stack
-#define DEEP_MAX	5	// max. deep in move stack
+#define STACK_MAX       	500	// max. size of move stack
+#define DEEP_MAX	        8	// max. deep in move stack
+#define ALPHABETA_DEEP      4   // min. deep for alpha-beta pruning
 
 // format: 4-bit paletted pixel graphics
 // image width: 196 pixels
