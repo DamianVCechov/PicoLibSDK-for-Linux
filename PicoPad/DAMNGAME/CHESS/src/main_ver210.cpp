@@ -81,7 +81,6 @@ const int menu_x = (BOARDW - menu_w) / 2;
 const int menu_y = (BOARDH - menu_h) / 2;
 const int item_h = 20;
 
-
 // player
 u8 Player;	// current player (WHITE_PLAYER or BLACK_PLAYER)
 //u8 Enemy;	// color of other player (WHITE_PLAYER or BLACK_PLAYER)
@@ -91,7 +90,7 @@ int MoveNum;	// move counter (current move 1..)
 u32 BlinkTime; // cursor blinking time
 u32 TickTack;  // refresh info window
 
-// ADDED: Flag to indicate if the game should start from an edited board
+// Flag to indicate if the game should start from an edited board
 Bool BoardIsEdited = False;
 
 // board template with border (from A1 to H8)
@@ -143,7 +142,7 @@ const u8 PieceRate[7] = {
 	15,		// 6: king
 };
 
-// ADDED: For editor, maps piece index to piece code
+// For editor, maps piece index to piece code
 const u8 PieceIndexToCode[] = { EMPTY, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING };
 
 // white player's opening moves table
