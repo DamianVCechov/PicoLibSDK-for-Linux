@@ -74,6 +74,13 @@ int DeepMax;
 u32 TimeMax;    // Time limit on move MAX (0 = unlimited )
 u32 MoveStartTime;  // Time start move 
 
+// warning and promotion
+const int menu_w = 160;
+const int menu_h = 120;
+const int menu_x = (BOARDW - menu_w) / 2;
+const int menu_y = (BOARDH - menu_h) / 2;
+const int item_h = 20;
+
 
 // player
 u8 Player;	// current player (WHITE_PLAYER or BLACK_PLAYER)
@@ -499,7 +506,7 @@ void NewGame()
 	}
 }
 
-// ADDED: Display UI for the board editor
+// Display for the board editor
 void DisplayEditorInfo(u8 piece_idx, u8 color, u8 player_to_move)
 {
     // Clear the right-side area for text
@@ -519,7 +526,6 @@ void DisplayEditorInfo(u8 piece_idx, u8 color, u8 player_to_move)
     DrawText("Cancel", BOARDW + 10, 200, COL_RED);
 
     // Draw selected piece for placement
-    // DrawText("Piece:", BOARDW + 10, 190, COL_WHITE);
     u8 piece_code = PieceIndexToCode[piece_idx];
     if (piece_code != EMPTY)
     {
@@ -536,7 +542,6 @@ void DisplayEditorInfo(u8 piece_idx, u8 color, u8 player_to_move)
     }
 }
 
-// ADDED: Function to enter board editing mode
 // returns True if the user wants to start the game from the edited position
 Bool BoardEditor()
 {
@@ -639,12 +644,17 @@ Bool BoardEditor()
 
                     if (white_king_count != 1 || black_king_count != 1)
                     {
-                        DrawText("Error:", BOARDW + 10, 280, COL_RED);
-                        DrawText("Board must have", BOARDW + 10, 300, COL_RED);
-                        DrawText("exactly one of", BOARDW + 10, 320, COL_RED);
-                        DrawText("each king.", BOARDW + 10, 340, COL_RED);
+	                	DrawRect(menu_x, menu_y, menu_w, menu_h, COL_BLACK);
+                		DrawRect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, COL_WHITE);
+                		DrawRect(menu_x + 2, menu_y + 2, menu_w - 4, menu_h - 4, COL_BLACK);
+                        DrawText("Warning", menu_x + (menu_w - 7 * 8) / 2, menu_y + 10, COL_RED);
+                        DrawText("Board must have", menu_x + (menu_w - 14 * 8) / 2, menu_y + 40, COL_RED);
+                        DrawText("exactly one of", menu_x + (menu_w - 14 * 8) / 2, menu_y + 60, COL_RED);
+                        DrawText("each king.",menu_x + (menu_w - 10 * 8) / 2, menu_y + 80, COL_RED);
                         DispUpdate();
-                        WaitMs(3000);
+                        WaitMs(3000);    
+                        DispBoard();
+                        DispUpdate();
                     }
                     else
                     {
@@ -659,7 +669,6 @@ Bool BoardEditor()
 }
 
 
-// ADDED: Prepare the game state from an edited board
 // Returns false on validation failure.
 Bool ValidateAndSetupEditedGame()
 {
@@ -1415,12 +1424,6 @@ void MoveComp()
 // show menu for pawn promotion
 u8 SelectPromotionPiece()
 {
-	const int menu_w = 160;
-	const int menu_h = 120;
-	const int menu_x = (BOARDW - menu_w) / 2;
-	const int menu_y = (BOARDH - menu_h) / 2;
-	const int item_h = 20;
-
 	const char* items[] = { "Queen", "Knight", "Bishop", "Rook" };
 	int num_items = 4;
 	int selection = 0;
