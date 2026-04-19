@@ -4,3 +4,4 @@
 #include "picotron/picotron_key.h"
 #include "picoino/picoino_key.h"
 #include "picoino/picoino_keymini.h"
+#include "clockwork/clockwork_key.h"

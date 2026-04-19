@@ -123,7 +123,7 @@ void EmuSyncTerm(int pwm)
 // ----------------------------------------------------------------------------
 
 #if USE_EMU_PC			// use PC emulator
-#include "pc/emu_pc.c"		// PC emulator
+#include "PC/emu_pc.c"		// PC emulator
 #endif
 
 #if USE_EMU_GB			// use Game Boy emulator

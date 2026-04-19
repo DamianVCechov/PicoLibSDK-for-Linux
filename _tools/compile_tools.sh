@@ -9,6 +9,8 @@ cd ../PicoPadImg
 gcc -m32 PicoPadImg.cpp -o PicoPadImg
 cd ../PicoPadImg2
 gcc -m32 PicoPadImg.cpp -o PicoPadImg2
+cd ../PicoPadImgBE
+gcc -m32 PicoPadImgBE.cpp -o PicoPadImgBE
 cd ../PicoPadLoaderBin
 gcc -m32 LoaderBin.cpp -o LoaderBin
 cd ../PicoPadLoaderCrc

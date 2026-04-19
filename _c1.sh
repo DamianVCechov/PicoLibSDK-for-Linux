@@ -71,21 +71,25 @@ cat $TARGET.siz
 if [[ "${TARGET}" == "LOADER" ]]; then
   # Copy UF2 file to destination folder with image of SD card
   if [[ ! -e $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/*.UF2 ]]; then mkdir $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"; fi
-  cp "${TARGET}".uf2 $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".UF2 > null
+  cp "${TARGET}".uf2 $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".UF2 > /dev/null
+  cp "${TARGET}".BMP $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".BMP > /dev/null
+  cp "${TARGET}".TXT $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".TXT > /dev/null
   exit 0
 fi
 
 if [[ "${DEVCLASS}" == "pico" ]]; then
   # Copy UF2 file to destination folder with image of SD card
   if [[ ! -e $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/*.UF2 ]]; then mkdir $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"; fi
-  cp "${TARGET}".uf2 $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".UF2 > null
+  cp "${TARGET}".uf2 $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".UF2 > /dev/null
   exit 0
 fi
 
 if [[ "${MEMMAP}" == "noflash" ]]; then
   # Copy UF2 file to destination folder with image of SD card
   if [[ ! -e $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/*.UF2 ]]; then mkdir $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"; fi
-  cp "${TARGET}".uf2 $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".UF2 > null
+  cp "${TARGET}".uf2 $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".UF2 > /dev/null
+  cp "${TARGET}".BMP $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".BMP > /dev/null
+  cp "${TARGET}".TXT $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".TXT > /dev/null
   exit 0
 fi
 
@@ -93,3 +97,7 @@ $(dirname "$0")/_tools/PicoPadLoaderCrc/LoaderCrc "${TARGET}".bin "${TARGET}".uf
 
 if [[ $? > 0 ]]; then echo "ERROR!"; exit 1; fi
 
+if [[ ! -e $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/*.UF2 ]]; then mkdir $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"; fi
+cp "${TARGET}".uf2 $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".UF2 > /dev/null
+cp "${TARGET}".BMP $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".BMP > /dev/null
+cp "${TARGET}".TXT $(dirname "$0")/"${DEVDIR}"/"${GRPDIR}"/"${TARGET}".TXT > /dev/null

@@ -20,6 +20,9 @@
 #   picopadvga ........ PicoPad with VGA RGB565 output
 #   picopadhstx ....... PicoPad RP2350 (ARM) and HSTX HDMI+VGA output
 #   picopadhstxriscv .. PicoPad RP2350 (RISC-V) and HSTX HDMI+VGA output
+#   clockwork10 ....... Picocalc Clockwork with RP2040
+#   clockwork20 ....... Picocalc Clockwork with RP2350 (ARM)
+#   clockwork20riscv .. Picocalc Clockwork RP2350 (RISC-V)
 #   (empty) ........... default compilation
 
 case "$1" in
@@ -92,6 +95,21 @@ case "$1" in
 	export DEVICE="picopadhstxriscv"
 	export DEVCLASS="picopad"
 	export DEVDIR="!PicoPadHSTXriscv"
+	;;
+    "clockwork10")
+	export DEVICE="clockwork10"
+	export DEVCLASS="clockwork"
+	export DEVDIR="!Clockwork10"
+	;;
+    "clockwork20")
+	export DEVICE="clockwork20"
+	export DEVCLASS="clockwork"
+	export DEVDIR="!Clockwork20"
+	;;
+    "clockwork20riscv")
+	export DEVICE="clockwork20riscv"
+	export DEVCLASS="clockwork"
+	export DEVDIR="!Clockwork20riscv"
 	;;
      *) 
 	export DEVICE="picopad10"

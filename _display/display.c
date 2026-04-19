@@ -39,3 +39,7 @@
 #if USE_ST7789
 #include "st7789/st7789.c"
 #endif
+
+#if USE_ILI9488
+#include "ili9488/ili9488.c"
+#endif

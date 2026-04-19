@@ -1,0 +1,79 @@
+// ****************************************************************************
+//
+//                                 Main code
+//
+// ****************************************************************************
+
+#include "../include.h"
+
+#define BTNW	50
+#define BTNH	34
+#define FRAME	2
+
+// Přístup k debug proměnným z picopad_key.c
+extern volatile u8 PicocalcDebugStatus;
+extern volatile u8 PicocalcDebugKey;
+
+void DispKey(int x, int y, const char* txt, Bool hold)
+{
+	x -= BTNW/2; y -= BTNH/2;
+	u16 fgcol = hold ? COL_YELLOW : COL_BLACK;
+	u16 bgcol = hold ? COL_BLUE : COL_WHITE;
+	DrawRect(x, y, BTNW, BTNH, bgcol);
+	DrawFrame(x+FRAME, y+FRAME, BTNW-2*FRAME, BTNH-2*FRAME, fgcol);
+	int len = StrLen(txt);
+	DrawText(txt, x + (BTNW-len*FONTW)/2, y + (BTNH-FONTH)/2, fgcol);
+}
+
+int main()
+{
+	DeviceInit(); 
+
+	DrawClearCol(COL_DKGREEN);
+	u32 t = Time();
+    u32 last_scan = 0;
+
+	DrawText("I2C DEBUG: Status Monitor", 10, 10, COL_WHITE);
+
+	while (True)
+	{
+        // Manuální I2C sken (bezpečný)
+        if ((Time() - last_scan) > 20000) { 
+            KeyScan_Manual();
+            last_scan = Time();
+        }
+
+		DispUpdate(); 
+	
+		DispKey(WIDTH/8*1, HEIGHT/4*2, "Left", KeyPressed(KEY_LEFT));
+		DispKey(WIDTH/8*2, HEIGHT/4*1, "Up", KeyPressed(KEY_UP));
+		DispKey(WIDTH/8*3, HEIGHT/4*2, "Right", KeyPressed(KEY_RIGHT));
+		DispKey(WIDTH/8*2, HEIGHT/4*3, "Down", KeyPressed(KEY_DOWN));
+		DispKey(WIDTH/8*5, HEIGHT/8*6, "A", KeyPressed(KEY_A));
+		DispKey(WIDTH/8*7, HEIGHT/8*5, "B", KeyPressed(KEY_B));
+		DispKey(WIDTH/8*5, HEIGHT/8*3, "X", KeyPressed(KEY_X));
+		DispKey(WIDTH/8*7, HEIGHT/8*2, "Y", KeyPressed(KEY_Y));
+
+        // --- DIAGNOSTIKA ---
+        // Zobrazí poslední přijatý Status byte a Key code
+        char dbg[50];
+        MemPrint(dbg, sizeof(dbg), "Last Status: 0x%02X | Key: 0x%02X (%c)", 
+            PicocalcDebugStatus, PicocalcDebugKey, 
+            (PicocalcDebugKey >= 32 && PicocalcDebugKey <= 126) ? PicocalcDebugKey : '.');
+        
+        DrawRect(0, HEIGHT-20, WIDTH, 20, COL_DKGREEN); // Smazat řádek
+        DrawText(dbg, 10, HEIGHT-15, COL_RED);
+        // -------------------
+
+		if (KeyPressed(KEY_Y))
+		{
+			if ((u32)(Time() - t) >= 2000000) ResetToBootLoader();
+		}
+		else
+		{
+			t = Time();
+		}
+		
+		WaitMs(1); 
+	}
+}

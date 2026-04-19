@@ -300,7 +300,7 @@ typedef void (*pEmu32Write32)(u32 addr, u32 data);
 // ----------------------------------------------------------------------------
 
 #if USE_EMU_PC			// use PC emulator
-#include "pc/emu_pc.h"		// PC emulator
+#include "PC/emu_pc.h"		// PC emulator
 #endif
 
 #if USE_EMU_GB			// use Game Boy emulator

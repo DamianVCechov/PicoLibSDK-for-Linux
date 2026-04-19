@@ -1,0 +1,2235 @@
+/*
+ *                           Author: ing. Miroslav Nemecek @NemecekPanda38
+ *
+ *                Fixed, patches, new functions and new bugs :-) : @DamianVCechov 2025
+ *                                   
+ *                                          version 2.10
+ *
+ *                                             CHANGES:
+ *
+ *               1.01 fixed castling
+ *               1.02 revised and extension of valid moves control
+ *               1.03 add pawn promotion
+ *               1.04 add function UNDO and history moves
+ *               1.05 add info window with look in a head MCU
+ *               1.06 slower refresh info window
+ *               1.07 fixed notation of moves - captured piece
+ *               1.08 fixing the display of the info window at deep 5 (choice Superpro)               
+ *               2.00 add experimentaly very simple alfa-beta pruning and new depths
+ *               2.01 add time limit on CPU move 
+ *               2.02 fixed info window with animation move
+ *               2.10 add editor chessboard, new scrolling menu, fixed some bugs
+ *               
+ *
+*/
+
+// ****************************************************************************
+//
+//                                 Main code
+//
+// ****************************************************************************
+// To check chess engine: use StockFish
+
+#include "../include.h"
+
+// text console
+char TextBuf[TEXTS+1];
+int TextRows = 0;
+
+// view to board (WHITE_PLAYER or BLACK_PLAYER)
+u8 PlayerView;
+
+// available moves
+Bool BoardEnable[MAPSIZE];
+
+// display info window
+Bool InfoWindow = False;
+Bool CloseWindow = False;
+
+// game board with border (order of fields: from field A1 to field H8)
+u8 Board[MAPSIZE];
+
+u32 EvaluatedPositions;
+sMove PrincipalVariation[DEEP_MAX];
+
+//#ifdef DEBUG_STACK	// debug flag - display stack max. depth
+//int MoveStackTopMax; // number of entries
+//#endif
+
+// move stack
+sMove MoveStack[STACK_MAX];
+int MoveStackTop; // number of entries
+const sMove* LastMove; // last move (NULL = check-mat)
+sMove GameHistory[STACK_MAX]; // Game History
+int GameHistoryTop;
+// start entries and number of entries in move stack
+int MoveStackStart[DEEP_MAX]; // start indices
+int MoveStackNum[DEEP_MAX]; // number of moves in one deep level
+int MoveStackInx[DEEP_MAX]; // current index in move stack
+u8 MovePassantPiece[DEEP_MAX+1]; // position of piece to En Passant (0 = invalid)
+u8 MovePassantPos[DEEP_MAX+1]; // capture position of piece to En Passant (0 = invalid)
+int MoveDeep; // current deep in move stack
+int DeepMax;
+
+u32 TimeMax;    // Time limit on move MAX (0 = unlimited )
+u32 MoveStartTime;  // Time start move 
+
+// warning and promotion
+const int menu_w = 160;
+const int menu_h = 120;
+const int menu_x = (BOARDW - menu_w) / 2;
+const int menu_y = (BOARDH - menu_h) / 2;
+const int item_h = 20;
+
+// player
+u8 Player;	// current player (WHITE_PLAYER or BLACK_PLAYER)
+//u8 Enemy;	// color of other player (WHITE_PLAYER or BLACK_PLAYER)
+sPlayer Players[2]; // players
+
+int MoveNum;	// move counter (current move 1..)
+u32 BlinkTime; // cursor blinking time
+u32 TickTack;  // refresh info window
+
+// Flag to indicate if the game should start from an edited board
+Bool BoardIsEdited = False;
+
+// board template with border (from A1 to H8)
+const u8 BoardTemp[MAPSIZE] = {
+//	      0		      1		      2		      3		      4		      5		      6		      7		      8		      9
+/*00*/	BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		                    // 00
+/*10*/	BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		                    // 10
+/*20*/	BORDER,		ROOK+WHITE,	KNIGHT+WHITE,	BISHOP+WHITE,	QUEEN+WHITE,	KING+WHITE,	BISHOP+WHITE,	KNIGHT+WHITE,	ROOK+WHITE,	BORDER,		// 20
+/*30*/	BORDER,		PAWN+WHITE,	PAWN+WHITE,	PAWN+WHITE,	PAWN+WHITE,	PAWN+WHITE,	PAWN+WHITE,	PAWN+WHITE,	PAWN+WHITE,	BORDER,		                    // 30
+/*40*/	BORDER,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		BORDER,		                    // 40
+/*50*/	BORDER,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		BORDER,		                    // 50
+/*60*/	BORDER,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		BORDER,		                    // 60
+/*70*/	BORDER,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		EMPTY,		BORDER,		                    // 70
+/*80*/	BORDER,		PAWN+BLACK,	PAWN+BLACK,	PAWN+BLACK,	PAWN+BLACK,	PAWN+BLACK,	PAWN+BLACK,	PAWN+BLACK,	PAWN+BLACK,	BORDER,		                    // 80
+/*90*/	BORDER,		ROOK+BLACK,	KNIGHT+BLACK,	BISHOP+BLACK,	QUEEN+BLACK,	KING+BLACK,	BISHOP+BLACK,	KNIGHT+BLACK,	ROOK+BLACK,	BORDER,		// 90
+/*100*/	BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		                    // 100
+/*110*/	BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		BORDER,		                    // 110
+};
+
+// template of possible moves (one row is 10 fields width)
+const s8 MovesTemp[24] = {
+	9,	11,	-11,	-9,	// 0: diagonally
+	10,	-10,	1,	-1,	// 4: perpendicularly
+	-21,	-12,	8,	19,	// 8: knight to the left
+	21,	12,	-8,	-19,	// 12: knight to the right
+	10,	20,	11,	9,	// 16: white pawn
+	-10,	-20,	-11,	-9,	// 20: black pawn
+};
+
+// possible moves of the pieces (offset, number of moves)
+const u8 PieceMoves[14] = {
+	20, 4,		// 0: black pawn
+	16, 4,		// 1: white pawn
+	8, 8,		// 2: knight
+	0, 4,		// 3: bishop
+	4, 4,		// 4: rook
+	0, 8,		// 5: queen
+	0, 8,		// 6: king
+};
+
+// rating of the pieces
+const u8 PieceRate[7] = {
+	0,		// 0: empty
+	1,		// 1: pawn
+	3,		// 2: knight
+	3,		// 3: bishop
+	5,		// 4: rook
+	9,		// 5: queen
+	15,		// 6: king
+};
+
+// For editor, maps piece index to piece code
+const u8 PieceIndexToCode[] = { EMPTY, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING };
+
+// white player's opening moves table
+const sMove OpenMovesTab[4] = {
+	{ 35, 55, PAWN+WHITE+NOMOVING, EMPTY, MOVEFLAG_NORMAL, 0, 0 },		// pawn from B5 to D5
+	{ 34, 54, PAWN+WHITE+NOMOVING, EMPTY, MOVEFLAG_NORMAL, 0, 0 },		// pawn from B4 to D4
+	{ 22, 43, KNIGHT+WHITE+NOMOVING, EMPTY, MOVEFLAG_NORMAL, 0, 0 },	// knight from A2 to C3
+	{ 27, 46, KNIGHT+WHITE+NOMOVING, EMPTY, MOVEFLAG_NORMAL, 0, 0 },	// knight from A7 to C6
+};
+
+// print text row to text console
+void OutText(const pText* txt)
+{
+	// scroll buffer
+	if (TextRows >= TEXTH)
+	{
+		memmove(&TextBuf[0], &TextBuf[TEXTW], TEXTS - TEXTW);
+		memset(&TextBuf[TEXTS - TEXTW], ' ', TEXTW);
+		TextRows--;
+	}
+
+	// print text
+	int len = TextLen(txt);
+	if (len > TEXTW) len = TEXTW;
+	memcpy(&TextBuf[TextRows*TEXTW], TextPtr(txt), len);
+
+	// set font
+	pDrawFont = FontBold8x16;
+	DrawFontHeight = 16;
+	DrawFontWidth = 8;
+
+	// print text buffer
+	int x, y;
+	char ch;
+	for (y = 0; y < TEXTH; y++)
+	{
+		ch = TextBuf[(y+1)*TEXTW];
+		TextBuf[(y+1)*TEXTW] = 0;
+		DrawTextBg(&TextBuf[y*TEXTW], WIDTH - TEXTW*FONTW, y*FONTH, COL_WHITE, COL_BLACK);
+		TextBuf[(y+1)*TEXTW] = ch;
+	}
+	DispUpdate();
+	TextRows++;
+}
+
+// Format move to text string
+void FormatTextMove(const sMove* m, pText* txt)
+{
+	int row, col;
+	TextEmpty(txt);
+
+	if (m->src == 0) return; // null
+
+	// castling
+	if (m->flags == MOVEFLAG_SMALL)
+	{
+		TextAddStr(txt, "O-O");
+	}
+	else if (m->flags == MOVEFLAG_BIG)
+	{
+		TextAddStr(txt, "O-O-O");
+	}
+	else
+	{
+		// resource Field (2 characters)
+		row = m->src / 10;
+		col = m->src - row*10;
+		TextAddCh(txt, col+'a'-1);
+		TextAddCh(txt, row+'1'-2);
+
+		// delimiter (1 character)
+		TextAddCh(txt, (m->dstpiece != EMPTY || m->flags == MOVEFLAG_EP) ? 'x' : '-');
+
+		// target field (2 characters)
+		row = m->dst / 10;
+		col = m->dst - row*10;
+		TextAddCh(txt, col+'a'-1);
+		TextAddCh(txt, row+'1'-2);
+
+		// pawn promotion
+		if (m->flags == MOVEFLAG_QUEEN)
+		{
+			TextAddCh(txt, '=');
+			u8 piece = m->extra & PIECEMASK;
+			if (piece == QUEEN) TextAddCh(txt, 'Q');
+			else if (piece == ROOK) TextAddCh(txt, 'R');
+			else if (piece == BISHOP) TextAddCh(txt, 'B');
+			else if (piece == KNIGHT) TextAddCh(txt, 'N');
+		}
+	}
+}
+
+// display info window
+void DisplayInfo()
+{
+	// refresh every 0.1 second
+	if (InfoWindow == True && (TickTack + 100000 <= Time()))
+	{
+        TickTack = Time();
+		pText txt;
+		TextInit(&txt);
+		char buf[40]; // local buffer for text
+
+		// background window + frame
+		DrawRect(WIN_X, WIN_Y, WIN_W, WIN_H+1, WIN_FRAME);
+		DrawRect(WIN_X+1, WIN_Y+1, WIN_W-2, WIN_H-1, WIN_BGCOL);
+
+    	// display headline
+    	DrawText(" Chess", (WIN_W - 5 * 8) / 2, WIN_Y + 5, WIN_COL);
+
+		// display deep
+		TextSetStr(&txt, "Deep: ");
+		TextAddInt(&txt, MoveDeep + 1, 0);
+		TextAddCh(&txt, '/');
+		TextAddInt(&txt, DeepMax, 0);
+		memcpy(buf, TextPtr(&txt), TextLen(&txt));
+		buf[TextLen(&txt)] = 0;
+		DrawText(buf, WIN_X + 5, WIN_Y + 25, WIN_COL);
+
+		// display positions
+		TextSetStr(&txt, "Positions: ");
+		TextAddUInt(&txt, EvaluatedPositions, 0);
+		memcpy(buf, TextPtr(&txt), TextLen(&txt));
+		buf[TextLen(&txt)] = 0;
+		DrawText(buf, WIN_X + 5, WIN_Y + 45, WIN_COL);
+
+        // display a main variant
+        DrawText("Variant:", WIN_X + 5, WIN_Y + 65, WIN_COL);
+
+        TextEmpty(&txt);
+        int i;
+        int movesOnLine = 0; // count moves on line
+        int line_y = WIN_Y + 85; // y position txt
+
+        for (i = 0; i < DeepMax; i++)
+        {
+            if (PrincipalVariation[i].src == 0) break;
+
+            pText move_txt;
+            TextInit(&move_txt);
+            FormatTextMove(&PrincipalVariation[i], &move_txt);
+
+            if ((TextLen(&txt) + TextLen(&move_txt) + 1) >= sizeof(buf)) break;
+    
+            TextAddStr(&txt, TextPtr(&move_txt));
+            TextAddCh(&txt, ' ');
+            TextTerm(&move_txt);
+    
+            movesOnLine++;
+
+            // if more than 4 moves, then new line
+            if (movesOnLine >= 4)
+            {
+                memcpy(buf, TextPtr(&txt), TextLen(&txt));
+                buf[TextLen(&txt)] = 0;
+                DrawText(buf, WIN_X + 5, line_y, WIN_COL);
+
+                TextEmpty(&txt); 
+                movesOnLine = 0; 
+                line_y += 20; 
+            }
+        }
+
+        if (TextLen(&txt) > 0)
+        {
+            memcpy(buf, TextPtr(&txt), TextLen(&txt));
+            buf[TextLen(&txt)] = 0;
+            DrawText(buf, WIN_X + 5, line_y, WIN_COL);
+        }
+
+        DispUpdate();
+        TextTerm(&txt);
+	}
+}
+
+
+// get piece from board (returns BORDER on invalid coordinates)
+INLINE u8 GetPiece(u8 inx) { return Board[inx]; }
+
+// set piece to board
+INLINE void SetPiece(u8 inx, u8 piece) { Board[inx] = piece; }
+
+// display one field (respects board rotation)
+//   w ..... cursor frame width (0 = off)
+//   color ... cursor frame color
+//   usemove ... use "move" color
+//   usecatch ... use "catch" color
+void DispField(u8 inx, u8 w, u16 color, Bool usemove, Bool usecatch)
+{
+	// check if field is valid
+	u8 piece = GetPiece(inx);
+	if (piece == BORDER) return;
+
+	// split index to column and row
+	u8 row = inx/MAPW;
+	u8 col = inx - row*MAPW - 1;
+	row -= 2;
+
+	// field source coordinate
+	int xs = (piece & PIECEMASK) * TILEW; // piece type, without color
+	int ys = ((piece & COLORMASK) == WHITE) ? TILEH : 0; // piece color
+	if (usemove)
+		ys += 4*TILEH; // use "move" color
+	else if (usecatch)
+		ys += 6*TILEH; // use "catch" color
+	else
+		if (((row + col) & 1) != 0) ys += 2*TILEH; // field color
+
+	// field destination coordinate
+	u8 x, y;
+	if (PlayerView)
+	{
+		x = FRAME + (MAP0W - 1 - col)*TILEW;
+		y = FRAME + row*TILEH;
+	}
+	else
+	{
+		x = FRAME + col*TILEW;
+		y = FRAME + (MAP0H - 1 - row)*TILEH;
+	}
+
+	// display field
+	DrawImg4Pal(PiecesImg, PiecesImg_Pal, xs, ys, x, y, TILEW, TILEH, PIECESIMGW);
+
+	// display cursor frame
+	if (w > 0)
+	{
+		DrawRect(x, y, TILEW, w, color); // top
+		DrawRect(x, y+TILEH-w, TILEW, w, color); // bottom
+		DrawRect(x, y+w, w, TILEH-2*w, color); // left
+		DrawRect(x+TILEW-w, y+w, w, TILEH-2*w, color); // right
+	}
+	else
+	{
+		// display enable mark
+		if (BoardEnable[inx])
+		{
+			color = COLOR(0, 255, 0);
+			if (((row + col) & 1) != 0) color = COLOR(0, 180, 0);
+			w = 2;
+#define DDW 2
+			DrawRect(x+DDW, y+DDW, TILEW-2*DDW, w, color); // top
+			DrawRect(x+DDW, y+TILEH-w-DDW, TILEW-2*DDW, w, color); // bottom
+			DrawRect(x+DDW, y+w+DDW, w, TILEH-2*w-2*DDW, color); // left
+			DrawRect(x+TILEW-w-DDW, y+w+DDW, w, TILEH-2*w-2*DDW, color); // right
+#undef DDW
+		}
+	}
+}
+
+// display board frame
+void DispFrame()
+{
+	int i, j;
+	u16 col;
+	char buf[2];
+
+	// set font
+	pDrawFont = FontBold8x8;
+	DrawFontHeight = 8;
+	DrawFontWidth = 8;
+
+	// draw frame
+	DrawRect(0, 0, BOARDW, FRAME, FRAMECOL); // top border
+	DrawRect(0, HEIGHT-FRAME, BOARDW, FRAME, FRAMECOL); // bottom border
+	DrawRect(0, FRAME, FRAME, HEIGHT-2*FRAME, FRAMECOL); // left border
+	DrawRect(BOARDW-FRAME, FRAME, FRAME, HEIGHT-2*FRAME, FRAMECOL); // right border
+
+	// horizontal legend
+	buf[1] = 0;
+	for (i = 0; i < MAP0W; i++)
+	{
+		buf[0] = PlayerView ? ('H' - i) : ('A' + i);
+		DrawText(buf, FRAME + TILEW/2 - 4 + i*TILEW, 0, LEGENDCOL); // top legend
+		DrawText(buf, FRAME + TILEW/2 - 4 + i*TILEW, HEIGHT-FRAME, LEGENDCOL); // top legend
+	}
+
+	// vertical legend
+	for (i = 0; i < MAP0H; i++)
+	{
+		buf[0] = PlayerView ? ('1' + i) : ('8' - i);
+		DrawText(buf, 0, FRAME + TILEH/2 - 4 + i*TILEH, LEGENDCOL); // left legend
+		DrawText(buf, BOARDW-FRAME, FRAME + TILEH/2 - 4 + i*TILEH, LEGENDCOL); // left legend
+	}
+}
+
+// display base board
+void DispBoard()
+{
+	int i;
+	for (i = 0; i < MAPSIZE; i++) DispField(i, 0, 0, False, False);
+}
+
+// display info call (toggle info window with A+UP)
+void DispInfoCall()
+{
+	if (KeyPressed(KEY_A) && KeyPressed(KEY_UP)) 
+	{
+		InfoWindow = !InfoWindow;
+		if (!InfoWindow) CloseWindow = True;
+		KeyFlush();
+		WaitMs(500);
+	}
+	if (InfoWindow == True) DisplayInfo();
+	else
+	{ 
+		// close info window
+		if (CloseWindow == True)
+		{
+			DispBoard();
+			DispUpdate();
+			CloseWindow = False;
+		}
+	}
+}
+
+// start new game
+void NewGame()
+{
+	DrawClear();
+    
+        // MODIFIED: Reset the edited flag
+        BoardIsEdited = False;
+
+	PlayerView = False; // view direction
+	MoveNum = 1; // move counter
+	Player = WHITE_PLAYER; // white is playing first
+	MoveStackTop = 0; // clear move stack
+
+	GameHistoryTop = 0;
+//#ifdef DEBUG_STACK	// debug flag - display stack max. depth
+//	MoveStackTopMax = 0; // number of entries
+//#endif
+	MovePassantPiece[0] = 0; // last position of piece to En Passant (0 = invalid)
+	MovePassantPos[0] = 0;  // last capture position of piece to En Passant (0 = invalid)
+
+	// clear text buffer
+	memset(TextBuf, ' ', TEXTS);
+	TextRows = 0;
+
+	// initialize board
+	u8 b;
+	int i;
+	for (i = 0; i < MAPSIZE; i++)
+	{
+		BoardEnable[i] = False;
+		b = BoardTemp[i];
+		if (b == KING+WHITE) Players[WHITE_PLAYER].king = i; // white king
+		if (b == KING+BLACK) Players[BLACK_PLAYER].king = i; // black king
+		if ((b != BORDER) && (b != EMPTY)) b |= NOMOVING; // not moving yet
+		Board[i] = b;
+	}
+
+	// initialize players
+	sPlayer* p = Players;
+	for (i = 0; i < 2; i++)
+	{
+		p->curpos = p->king; // current cursor position
+		p++;
+	}
+}
+
+// Display for the board editor
+void DisplayEditorInfo(u8 piece_idx, u8 color, u8 player_to_move)
+{
+    // Clear the right-side area for text
+    DrawRect(BOARDW, 0, WIDTH - BOARDW, HEIGHT, COL_BLACK);
+
+    pDrawFont = FontBold8x16;
+    DrawFontHeight = 16;
+    DrawFontWidth = 8;
+    
+    // Draw instructions
+    DrawText("Editor", BOARDW + 20, 20, COL_YELLOW);
+    DrawText("A:Insert", BOARDW + 10, 50, COL_WHITE);
+    DrawText("B:Color", BOARDW + 10, 70, COL_WHITE);
+    DrawText("X:Piece", BOARDW + 10, 90, COL_WHITE);
+    DrawText("Y:Start", BOARDW + 10, 160, COL_GREEN);
+    DrawText("UP+Y:", BOARDW + 10, 180, COL_RED);
+    DrawText("Cancel", BOARDW + 10, 200, COL_RED);
+
+    // Draw selected piece for placement
+    u8 piece_code = PieceIndexToCode[piece_idx];
+    if (piece_code != EMPTY)
+    {
+        piece_code |= color;
+    }
+
+    // Temporarily place the piece on an empty off-screen buffer or valid tile for rendering
+    int xs = (piece_code & PIECEMASK) * TILEW;
+    int ys = ((piece_code & COLORMASK) == WHITE) ? TILEH : 0;
+    if (piece_code != EMPTY) {
+        DrawImg4Pal(PiecesImg, PiecesImg_Pal, xs, ys, BOARDW + 25, 120, TILEW, TILEH, PIECESIMGW);
+    } else {
+        DrawText("DELETE", BOARDW + 20, 130, COL_WHITE);
+    }
+}
+
+// returns True if the user wants to start the game from the edited position
+Bool BoardEditor()
+{
+    u8 cursor_pos = 55; // Start in the middle of the board
+    u8 piece_type_idx = 1; // Start with PAWN
+    u8 piece_color = WHITE;
+    u8 player_to_move = WHITE_PLAYER;
+    u32 blink_time = Time();
+    char ch;
+    
+    // Create an empty board for editing
+    int i;
+    for (i = 0; i < MAPSIZE; i++) {
+        Board[i] = (BoardTemp[i] == BORDER) ? BORDER : EMPTY;
+    }
+
+    DispFrame();
+    DispBoard();
+
+    while(True)
+    {
+        DisplayEditorInfo(piece_type_idx, piece_color, player_to_move);
+
+        // Draw blinking cursor
+        VgaWaitVSync();
+        u32 t = Time();
+        DispField(cursor_pos, ((((t - blink_time) >> 16) & 3) == 3) ? 0 : 4, COLOR(255, 255, 0), False, False);
+        DispUpdate();
+
+        ch = KeyGet();
+
+        // Cursor movement
+        switch(ch)
+        {
+            case KEY_LEFT:
+                DispField(cursor_pos, 0, 0, False, False);
+                cursor_pos--;
+                if (GetPiece(cursor_pos) == BORDER) cursor_pos += MAP0W;
+                blink_time = Time();
+                break;
+
+            case KEY_RIGHT:
+                DispField(cursor_pos, 0, 0, False, False);
+                cursor_pos++;
+                if (GetPiece(cursor_pos) == BORDER) cursor_pos -= MAP0W;
+                blink_time = Time();
+                break;
+
+            case KEY_DOWN:
+				DispField(cursor_pos, 0, 0, False, False);
+				cursor_pos -= MAPW;
+				if (GetPiece(cursor_pos) == BORDER) cursor_pos += MAP0H*MAPW;
+				blink_time = Time();
+				break;
+
+            case KEY_UP:
+                if (KeyPressed(KEY_Y)) // Cancel and exit editor
+                {
+                    BoardIsEdited = False;
+                    return False;
+                }
+                DispField(cursor_pos, 0, 0, False, False);
+                cursor_pos += MAPW;
+                if (GetPiece(cursor_pos) == BORDER) cursor_pos -= MAP0H*MAPW;
+                blink_time = Time();
+                break;
+            
+            case KEY_A: // Place piece
+                {
+                    u8 piece_to_place = PieceIndexToCode[piece_type_idx];
+                    if (piece_to_place != EMPTY) {
+                        piece_to_place |= piece_color;
+                    }
+                    SetPiece(cursor_pos, piece_to_place);
+                    DispField(cursor_pos, 0, 0, False, False); // Redraw field without cursor
+                }
+                break;
+
+            case KEY_B: // Switch color
+                piece_color = (piece_color == WHITE) ? BLACK : WHITE;
+                WaitMs(200);
+                break;
+
+            case KEY_X: // Cycle through pieces
+                piece_type_idx++;
+                if (piece_type_idx > 6) piece_type_idx = 0; // 0=EMPTY, 1=PAWN..6=KING
+                WaitMs(200);
+                break;
+            
+            case KEY_Y: // Save, validate and exit
+                {
+                    int white_king_count = 0;
+                    int black_king_count = 0;
+                    for(i = 21; i <= 98; i++)
+                    {
+                        u8 p = GetPiece(i);
+                        if (p == (KING | WHITE)) white_king_count++;
+                        if (p == (KING | BLACK)) black_king_count++;
+                    }
+
+                    if (white_king_count != 1 || black_king_count != 1)
+                    {
+	                	DrawRect(menu_x, menu_y, menu_w, menu_h, COL_BLACK);
+                		DrawRect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, COL_WHITE);
+                		DrawRect(menu_x + 2, menu_y + 2, menu_w - 4, menu_h - 4, COL_BLACK);
+                        DrawText("Warning", menu_x + (menu_w - 7 * 8) / 2, menu_y + 10, COL_RED);
+                        DrawText("Board must have", menu_x + (menu_w - 14 * 8) / 2, menu_y + 40, COL_RED);
+                        DrawText("exactly one of", menu_x + (menu_w - 14 * 8) / 2, menu_y + 60, COL_RED);
+                        DrawText("each king.",menu_x + (menu_w - 10 * 8) / 2, menu_y + 80, COL_RED);
+                        DispUpdate();
+                        WaitMs(3000);    
+                        DispBoard();
+                        DispUpdate();
+                    }
+                    else
+                    {
+                        BoardIsEdited = True;
+                        Player = player_to_move;
+                        return True; // Signal to start the game
+                    }
+                }
+                break;
+        }
+    }
+}
+
+
+// Returns false on validation failure.
+Bool ValidateAndSetupEditedGame()
+{
+    DrawClear();
+
+    // Find kings and validate the position
+    int white_king_pos = -1;
+    int black_king_pos = -1;
+    
+    for (int i = 0; i < MAPSIZE; i++)
+    {
+        u8 piece = Board[i];
+        if ((piece & PIECEMASK) == KING)
+        {
+            if ((piece & COLORMASK) == WHITE) white_king_pos = i;
+            else black_king_pos = i;
+        }
+        // Remove NOMOVING flag from all pieces to disable castling in edited positions
+        if ((piece != BORDER) && (piece != EMPTY))
+        {
+            Board[i] = piece & ~NOMOVING;
+        }
+    }
+    
+    if (white_king_pos == -1 || black_king_pos == -1) return False; // Should be caught by editor
+
+    // Set up game state
+    PlayerView = Player;
+	MoveNum = 1;
+	MoveStackTop = 0;
+	GameHistoryTop = 0;
+	MovePassantPiece[0] = 0;
+	MovePassantPos[0] = 0;
+
+	// Clear text buffer
+	memset(TextBuf, ' ', TEXTS);
+	TextRows = 0;
+
+	// Set king positions
+	Players[WHITE_PLAYER].king = white_king_pos;
+	Players[BLACK_PLAYER].king = black_king_pos;
+
+	// Initialize players' cursor positions
+	Players[WHITE_PLAYER].curpos = white_king_pos;
+	Players[BLACK_PLAYER].curpos = black_king_pos;
+
+    return True;
+}
+
+
+void DoMove(const sMove* m)
+{
+	// update king position
+	if ((m->srcpiece & PIECEMASK) == KING) Players[Player].king = m->dst;
+
+	// regular move
+	if (m->flags == MOVEFLAG_NORMAL)
+	{
+		SetPiece(m->src, EMPTY); // empty old position
+		SetPiece(m->dst, m->srcpiece & ~MOVEMASK); // move piece, clear move flag
+	}
+	// change pawn to queen
+	else if (m->flags == MOVEFLAG_QUEEN)
+	{
+		SetPiece(m->src, EMPTY); // empty old position
+		SetPiece(m->dst, m->extra); // place new piece
+	}
+	// En Passant
+	else if (m->flags == MOVEFLAG_EP)
+	{
+		SetPiece(m->src, EMPTY); // empty old position
+		SetPiece(m->dst, m->srcpiece & ~MOVEMASK); // move piece, clear move flag
+		SetPiece(m->extra, EMPTY); // capture enemy pawn
+	}
+	// small castle
+	else if (m->flags == MOVEFLAG_SMALL)
+	{
+		SetPiece(m->src, EMPTY);
+		SetPiece(m->dst, m->srcpiece & ~MOVEMASK);
+		SetPiece(m->src + 3, EMPTY);
+		SetPiece(m->src + 1, m->dstpiece & ~MOVEMASK);
+	}
+	// big castle
+	else if (m->flags == MOVEFLAG_BIG)
+	{
+		SetPiece(m->src, EMPTY);
+		SetPiece(m->dst, m->srcpiece & ~MOVEMASK);
+		SetPiece(m->src - 4, EMPTY);
+		SetPiece(m->src - 1, m->dstpiece & ~MOVEMASK);
+	}
+}
+
+// undo move (without visualization)
+void UndoMove(const sMove* m)
+{
+    // update king position
+	if ((m->srcpiece & PIECEMASK) == KING) Players[Player].king = m->src;
+
+    // regular move
+	if ((m->flags == MOVEFLAG_NORMAL) || (m->flags == MOVEFLAG_QUEEN))
+	{
+		SetPiece(m->src, m->srcpiece);
+		SetPiece(m->dst, m->dstpiece);
+	}
+
+    // En Passant
+	else if (m->flags == MOVEFLAG_EP)
+	{
+		SetPiece(m->src, m->srcpiece);
+		SetPiece(m->dst, EMPTY);
+		SetPiece(m->extra, m->dstpiece);
+	}
+
+    // little castle
+	else if (m->flags == MOVEFLAG_SMALL)
+	{
+		SetPiece(m->src, m->srcpiece);
+		SetPiece(m->dst, EMPTY);
+		SetPiece(m->src + 3, m->dstpiece);
+		SetPiece(m->src + 1, EMPTY);
+	}
+    
+    // big castle
+	else if (m->flags == MOVEFLAG_BIG)
+	{
+		SetPiece(m->src, m->srcpiece);
+		SetPiece(m->dst, EMPTY);
+		SetPiece(m->src - 4, m->dstpiece);
+		SetPiece(m->src - 1, EMPTY);
+	}
+}
+
+// do move with visualization
+void DoMoveDisp(const sMove* m)
+{
+	LastMove = m;
+
+	// save position of En Passant
+	MovePassantPiece[0] = 0;
+	MovePassantPos[0] = 0;
+	if ((m->srcpiece & (PIECEMASK | MOVEMASK)) == (PAWN | NOMOVING))
+	{
+		int dif = m->dst - m->src;
+		if ((dif == 20) || (dif == -20))
+		{
+			MovePassantPiece[0] = m->dst; // destination position of pawn
+			MovePassantPos[0] = m->src + dif/2; // capture position
+		}
+	}
+
+	// prepare destination color
+	Bool usemove = True;
+	Bool usecatch = False;
+	if ((m->dstpiece != EMPTY) && (m->flags != MOVEFLAG_SMALL) && (m->flags != MOVEFLAG_BIG))
+	{
+		usemove = False;
+		usecatch = True;
+	}
+
+	// draw destination
+	DispField(m->dst, 0, 0, usemove, usecatch);
+
+	// animate source field
+	int i;
+	for (i = 0; i < 4; i++)
+	{
+		SetPiece(m->src, m->srcpiece);
+		DispField(m->src, 0, 0, True, False);
+		DispUpdate();
+		WaitMs(100);
+
+		SetPiece(m->src, EMPTY);
+		DispField(m->src, 0, 0, True, False);
+		DispUpdate();
+		WaitMs(100);
+	}
+	SetPiece(m->src, m->srcpiece);
+
+	// do move
+	DoMove(m);
+	u8 piece = GetPiece(m->dst);
+
+	// display source field
+	DispField(m->src, 0, 0, True, False);
+
+	// animate destination field
+	for (i = 0; i < 4; i++)
+	{
+		SetPiece(m->dst, piece);
+		DispField(m->dst, 0, 0, usemove, usecatch);
+		DispUpdate();
+		WaitMs(100);
+
+		SetPiece(m->dst, EMPTY);
+		DispField(m->dst, 0, 0, usemove, usecatch);
+		DispUpdate();
+		WaitMs(100);
+	}
+	SetPiece(m->dst, piece);
+
+	DispBoard();
+	DispUpdate();
+
+   	if (GameHistoryTop < STACK_MAX)
+	{
+		GameHistory[GameHistoryTop] = *m;
+		GameHistoryTop++;
+	}
+}
+
+// test whether king of current player is in check
+Bool TestCheck()
+{
+	int dir, jump, pos, pos0, steps;
+	u8 piece;
+	u8 player_color = (Player == WHITE_PLAYER) ? WHITE : BLACK;
+
+	// prepare king current position
+	pos0 = Players[Player].king;
+
+	// check all possible directions from direction table (including knight jump)
+	for (dir = 0; dir < 16; dir++)
+	{
+		// load next jump offset
+		jump = MovesTemp[dir];
+
+		// prepare starting position
+		pos = pos0;
+
+		// check steps
+		for (steps = 0; ;)
+		{
+			// increase steps
+			steps++;
+
+			// shift position
+			pos += jump;
+
+			// get board content
+			piece = GetPiece(pos);
+
+			// border
+			if (piece == BORDER) break;
+
+			// empty field - continue to next field, except knight direction
+			if (piece == EMPTY)
+			{
+				if (dir >= 8) break;
+				continue;
+			}
+
+            // check color - piece of same color covers the king
+			if ((piece & COLORMASK) == player_color) break;
+			
+            // !!! FINALLY, NOW THE "piece" IS THE REALLY ENEMY !!!
+
+			piece &= PIECEMASK;
+
+			// enemy knight (1 step, knight directions)
+			if (piece == KNIGHT)
+			{
+				if (dir >= 8) return True; // king is in check
+				break;
+			}
+
+			// no other pieces can check in knight directions
+			if (dir >= 8) break;
+
+			// enemy king (1 step, not knight directions)
+			if (piece == KING)
+			{
+				if (steps == 1) return True; // king is in check
+				break;
+			}
+
+			// enemy queen
+			if (piece == QUEEN) return True;
+
+			// bishop
+			if ((piece == BISHOP) && (dir <= 3)) return True;
+
+			// rook
+			if ((piece == ROOK) && (dir >= 4)) return True;
+			
+			// pawn
+			if ((piece == PAWN) && (dir <= 3) && (steps == 1))
+			{
+				// black pawn attacking white king
+				if (player_color == WHITE)
+				{
+					if ((jump == 11) || (jump == 9)) return True;
+				}
+				// white pawn attacking black king
+				else
+				{
+					if ((jump == -11) || (jump == -9)) return True;
+				}
+			}
+
+			// others are safe
+			break;
+		}
+	}
+	return False;
+}
+
+// search all possible moves in current deep level
+void SearchMoves(s16 val)
+{
+	int level = MoveDeep;                               // current deep level
+	int movenum = MoveStackTop;                         // number of entries
+	MoveStackStart[level] = movenum;                    // save index of start move
+	sMove* move = &MoveStack[movenum];                  // pointer to current move
+	u8 piece, piece2, piece3, piece4, flags;
+	u8 col = (Player == WHITE_PLAYER) ? WHITE : BLACK;  // prepare piece color
+	u8 enemycol = col ^ COLORMASK;                      // prepare enemy piece color
+	int dir, dirnum, jump, pos, steps;
+	s16 val2;
+	Bool possiblecheck, check;
+	u8 extra = 0;
+
+    // loop all fields
+	u8 pos0 = 21;   // first field
+	for (; pos0 <= 98; pos0++)
+	{
+        // get piece
+		piece = GetPiece(pos0);
+
+        // check piece color (must be player's own piece)
+		if ((piece == BORDER) || (piece == EMPTY) || ((piece & COLORMASK) != col)) continue;
+
+        // fast check to see if removing a piece can put the king in check
+		piece2 = piece & PIECEMASK;
+		if (piece2 == KING)
+			possiblecheck = True;
+		else
+		{
+			SetPiece(pos0, EMPTY);
+			possiblecheck = TestCheck();
+			SetPiece(pos0, piece);
+		}
+        // prepare piece directions
+		if ((piece2 == PAWN) && (col == BLACK)) piece2 = 0;
+		dir = PieceMoves[piece2*2];
+		dirnum = PieceMoves[piece2*2+1];
+
+    	// loop all directions
+		for (; dirnum > 0; dirnum--)
+		{
+            // get jump offset
+			jump = MovesTemp[dir];
+			dir++;
+
+            // prepare start position
+			pos = pos0;
+
+            // check steps
+			for (steps = 0; ;)
+			{
+                // increase steps
+				steps++;
+
+            	// shift position
+				pos += jump;
+
+                // get board content
+				piece3 = GetPiece(pos);
+
+                // border
+				if (piece3 == BORDER) break;
+
+                // same color, break
+				if ((piece3 != EMPTY) && ((piece3 & COLORMASK) == col)) break;
+
+            	// pawn
+				flags = MOVEFLAG_NORMAL;
+				if (piece2 <= 1)
+				{
+                    // 2 fields: must be first move and to empty field
+					if ((jump == 20) || (jump == -20))
+					{
+						if (((piece & MOVEMASK) == MOVING) || (piece3 != EMPTY) || (GetPiece(pos0 + jump/2) != EMPTY)) break;
+					}
+
+                    // 1 step in straight direction: must be to empty field
+					if ((jump == 10) || (jump == -10))
+					{
+						if (piece3 != EMPTY) break;
+					}
+
+                    // 1 step diagonally: must capture enemy
+					if ((jump == -11) || (jump == -9) || (jump == 11) || (jump == 9))
+					{
+						if (piece3 == EMPTY)
+						{
+                            // check En Passant Privilege
+							if (pos != MovePassantPos[level]) break;
+							extra = MovePassantPiece[level];
+							piece3 = GetPiece(extra);
+							flags = MOVEFLAG_EP;
+						}
+					}
+
+                    // change pawn to something else
+					if (((pos >= 21) && (pos <= 28)) || ((pos >= 91) && (pos <= 98)))
+					{
+                        // test check condition
+						check = False;
+						if (possiblecheck)
+						{
+							SetPiece(pos0, EMPTY);
+							SetPiece(pos, piece);
+							check = TestCheck();
+							SetPiece(pos0, piece);
+							SetPiece(pos, piece3);	
+						}
+						if (!check)
+						{
+                        	// add 4 moves
+							for (piece4 = KNIGHT; piece4 <= QUEEN; piece4++)
+							{
+								val2 = val;
+								if (piece3 != EMPTY) val2 += PieceRate[piece3 & PIECEMASK];
+								val2 += PieceRate[piece4] - 1;
+								if (movenum < STACK_MAX)
+								{
+									move->src = pos0;
+									move->dst = pos;
+									move->srcpiece = piece;
+									move->dstpiece = piece3;
+									move->flags = MOVEFLAG_QUEEN;
+									move->val = val2;
+									move->extra = piece4 | col;
+									move++;
+									movenum++;
+								}
+							}
+						}
+						break;
+					}
+				}
+
+				// test check condition
+				check = False;
+				if (piece2 == KING)
+				{
+                	// check king
+					SetPiece(pos0, EMPTY);
+					SetPiece(pos, piece);
+					Players[Player].king = pos;
+					check = TestCheck();
+					Players[Player].king = pos0;
+					SetPiece(pos0, piece);
+					SetPiece(pos, piece3);	
+				}
+				else if (possiblecheck)
+				{
+					SetPiece(pos0, EMPTY);
+					SetPiece(pos, piece);
+					check = TestCheck();
+					SetPiece(pos0, piece);
+					SetPiece(pos, piece3);	
+				}
+				if (!check)
+				{
+					// empty field or enemy
+					val2 = val;
+					if (piece3 != EMPTY) val2 += PieceRate[piece3 & PIECEMASK];
+
+                	// add move
+					if (movenum < STACK_MAX)
+					{
+						move->src = pos0;
+						move->dst = pos;
+						move->srcpiece = piece;
+						move->dstpiece = piece3;
+						move->flags = flags;
+						move->extra = extra;
+						move->val = val2;
+						move++;
+						movenum++;
+					}
+				}
+
+				// found enemy, stop steps
+				if (piece3 != EMPTY) break;
+
+				// king, pawn and knight can go only 1 step
+				if ((piece2 == KNIGHT) || (piece2 <= 1) || (piece2 == KING)) break;
+			}
+		}
+	}
+
+    // test castle
+	pos0 = Players[Player].king;  // king position
+	piece = GetPiece(pos0); // get king piece
+	if (((piece & MOVEMASK) == NOMOVING) && !TestCheck())
+	{
+    	// small castle
+		pos = pos0 + 3;
+		piece3 = GetPiece(pos);
+		if ( ((piece3 & (PIECEMASK | MOVEMASK)) == (ROOK | NOMOVING)) &&
+		     ((piece3 & COLORMASK) == col) &&
+			 (GetPiece(pos0 + 1) == EMPTY) &&
+			 (GetPiece(pos0 + 2) == EMPTY))
+        {
+			Players[Player].king = pos0 + 1;
+			check = TestCheck();
+			Players[Player].king = pos0 + 2;
+			check |= TestCheck();
+			Players[Player].king = pos0;
+			if (!check && (movenum < STACK_MAX))
+			{
+				move->src = pos0;
+				move->dst = pos0 + 2;
+				move->srcpiece = piece;
+				move->dstpiece = piece3;
+				move->flags = MOVEFLAG_SMALL;
+				move->val = val;
+				move++;
+				movenum++;
+			}
+		}
+        
+		// big castle
+		pos = pos0 - 4;
+		piece3 = GetPiece(pos);
+		if ( ((piece3 & (PIECEMASK | MOVEMASK)) == (ROOK | NOMOVING)) &&
+		     ((piece3 & COLORMASK) == col) &&
+			 (GetPiece(pos0 - 1) == EMPTY) &&
+			 (GetPiece(pos0 - 2) == EMPTY) &&
+			 (GetPiece(pos0 - 3) == EMPTY))
+        {
+            Players[Player].king = pos0 - 1;
+			check = TestCheck();
+			Players[Player].king = pos0 - 2;
+			check |= TestCheck();
+			Players[Player].king = pos0;
+			if (!check && (movenum < STACK_MAX))
+			{
+				move->src = pos0;
+				move->dst = pos0 - 2;
+				move->srcpiece = piece;
+				move->dstpiece = piece3;
+				move->flags = MOVEFLAG_BIG;
+				move->val = val;
+				move++;
+				movenum++;
+			}
+		}
+	}
+
+	// store number of moves
+	MoveStackNum[level] = movenum - MoveStackTop;
+	MoveStackTop = movenum;
+
+//#ifdef DEBUG_STACK	// debug flag - display stack max. depth
+//	if (MoveStackTopMax < movenum) MoveStackTopMax = movenum; // number of entries
+//#endif
+}
+
+// find computer move on one level (returns best move, NULL = not found)
+sMove* MoveCompLevel(s16 alpha, s16 beta)
+{
+	int deep = MoveDeep;
+	int top;
+	sMove *m, *m2;
+
+	// search moves at this level
+	SearchMoves(0);
+
+	// number of moves
+	int i = MoveStackNum[deep];
+	if (i == 0) return NULL;
+
+	// max. level (initial moves are with less depth)
+	int deepmax = MoveNum;
+	if (deepmax > DeepMax-1) deepmax = DeepMax-1;
+
+	// loop moves
+	if (deep < deepmax)
+	{
+		// shift level
+		MoveDeep = deep + 1;
+
+		// check moves
+		m = &MoveStack[MoveStackStart[deep]];
+		for (; i > 0; i--)
+		{
+            // control time
+            if (TimeMax > 0 && (Time() - MoveStartTime >= (u64)TimeMax * 1000))
+            {
+                break;
+            }
+
+            EvaluatedPositions++;
+
+			// save en passant
+			MovePassantPiece[deep+1] = 0;
+			MovePassantPos[deep+1] = 0;
+			if ((m->srcpiece & (PIECEMASK | MOVEMASK)) == (PAWN | NOMOVING))
+			{
+				int dif = m->dst - m->src;
+				if ((dif == 20) || (dif == -20))
+				{
+					MovePassantPiece[deep+1] = m->dst;
+					MovePassantPos[deep+1] = m->src + dif/2;
+				}
+			}
+
+			DoMove(m);
+
+			// change player
+			Player ^= 1;
+			top = MoveStackTop;
+
+			m2 = MoveCompLevel(-beta, -alpha);
+
+			// no move, checkmate or pat
+			if (m2 == NULL)
+				m->val += VAL_WIN;
+			else
+				m->val -= m2->val;
+
+            // update main variant in alphabeta
+            if (m->val > alpha)
+            {
+                alpha = m->val;
+                PrincipalVariation[deep] = *m;
+            }
+
+			// restore state
+			MoveStackTop = top;
+			Player ^= 1;
+			UndoMove(m);
+
+			// display info window
+			DispInfoCall();
+
+			// quit with button Y
+			if(KeyPressed(KEY_Y)) break;
+
+            // If maximum set depth is ALPHABETA_DEEP or more, use pruning.
+            if (DeepMax >= ALPHABETA_DEEP)
+            {
+                // alpha-beta pruning 
+                if (alpha >= beta)
+                {
+                    break;
+                }
+            }
+
+			// next move
+			m++;
+		}
+
+		// restore state
+		MoveDeep = deep;
+	}
+
+	// use first move
+	m = &MoveStack[MoveStackStart[deep]];
+	int bestnum = 1;
+	s16 bestval = m->val;
+	m++;
+	i = MoveStackNum[deep] - 1;
+	
+	// check moves
+	for (; i > 0; i--)
+	{
+		if (m->val == bestval)
+			bestnum++;
+		else if (m->val > bestval)
+		{
+			bestnum = 1;
+			bestval = m->val;
+		}
+		m++;
+	}
+
+	// randomize selection
+	i = RandS16Max(bestnum - 1);
+
+	// search best move
+	m = &MoveStack[MoveStackStart[deep]];
+	for (;;)
+	{
+		if (m->val == bestval)
+		{
+			i--;
+			if (i < 0) break;
+		}		
+		m++;
+	}
+	
+    // save main variant
+    PrincipalVariation[deep] = *m;
+
+	return m;
+}
+
+// move computer
+void MoveComp()
+{
+	// white player is opening game
+	if ((MoveNum == 1) && (Player == WHITE_PLAYER))
+	{
+		const sMove* m  = &OpenMovesTab[RandU8Max(3)];
+		DoMoveDisp(m);
+		return;
+	}
+    
+    // start time
+    MoveStartTime = Time();
+
+	// prepare all possible moves
+	MoveDeep = 0;
+	MoveStackTop = 0;
+
+    EvaluatedPositions = 0;
+    memset(PrincipalVariation, 0, sizeof(PrincipalVariation));
+
+//#ifdef DEBUG_STACK	// debug flag - display stack max. depth
+//	MoveStackTopMax = 0; // number of entries
+//#endif
+
+	// search move
+    sMove* m = MoveCompLevel(-32000, 32000);
+	LastMove = m;
+
+	if (m != NULL)
+	{
+        // hide info window during move animation
+		Bool info_was_open = InfoWindow;
+		if (info_was_open)
+		{
+			InfoWindow = False;
+			DispBoard();
+			DispUpdate();
+		}
+
+		DoMoveDisp(m);
+
+    	// restore info window if it was open
+		if (info_was_open)
+		{
+			InfoWindow = True;
+			DisplayInfo(); // Redraw info window immediately
+		}
+	}
+}
+
+// show menu for pawn promotion
+u8 SelectPromotionPiece()
+{
+	const char* items[] = { "Queen", "Knight", "Bishop", "Rook" };
+	int num_items = 4;
+	int selection = 0;
+	char ch;
+
+	pDrawFont = FontBold8x16;
+	DrawFontHeight = 16;
+	DrawFontWidth = 8;
+	
+	KeyFlush();
+
+	while(True)
+	{
+		// Draw menu background
+		DrawRect(menu_x, menu_y, menu_w, menu_h, COL_BLACK);
+		DrawRect(menu_x + 1, menu_y + 1, menu_w - 2, menu_h - 2, COL_WHITE);
+		DrawRect(menu_x + 2, menu_y + 2, menu_w - 4, menu_h - 4, COL_BLACK);
+        DrawText("Pawn promotion", menu_x + (menu_w - 14 * 8) / 2, menu_y + 10, COL_YELLOW);
+
+		// Draw items
+		for (int i = 0; i < num_items; i++)
+		{
+	    	u16 text_col = COL_WHITE;
+	    	u16 bg_col = COL_BLACK;
+            int len = StrLen(items[i]);
+            
+            // cursor
+			if (i == selection)
+			{
+				text_col = COL_BLACK;
+				bg_col = COL_YELLOW;
+			}
+			DrawTextBg(items[i], menu_x + (menu_w - len * 8) / 2, menu_y + 32 + i * item_h, text_col, bg_col);
+		}
+		DispUpdate();
+
+		ch = KeyGet();
+		switch(ch)
+		{
+			case KEY_UP:
+				selection--;
+				if (selection < 0) selection = num_items - 1;
+				break;
+			
+			case KEY_DOWN:
+				selection++;
+				if (selection >= num_items) selection = 0;
+				break;
+
+			case KEY_A:
+				switch(selection)
+				{
+					case 0: return QUEEN;
+					case 1: return KNIGHT;
+					case 2: return BISHOP;
+					case 3: return ROOK;
+				}
+				break;
+			
+			case KEY_Y: // quit from selection
+				return QUEEN; // Default to Queen on cancel
+		}
+	}
+}
+
+void RestoreEnPassantStateAfterUndo()
+{
+    // clear En Passant state
+    MovePassantPiece[0] = 0;
+    MovePassantPos[0] = 0;
+
+    // recalculate based on the new last move
+    if (GameHistoryTop > 0)
+    {
+        const sMove* prev_move = &GameHistory[GameHistoryTop - 1];
+
+        // check if the previous move was a pawn's first
+        if ((prev_move->srcpiece & PIECEMASK) == PAWN && (prev_move->srcpiece & MOVEMASK) == NOMOVING)
+        {
+            int diff = prev_move->dst - prev_move->src;
+            if (diff == 20 || diff == -20)
+            {
+                MovePassantPiece[0] = prev_move->dst;     // Position of the pawn
+                MovePassantPos[0] = prev_move->src + diff / 2; // Capturable square
+            }
+        }
+    }
+}
+
+void UndoPlayerMove()
+{
+    if (GameHistoryTop == 0) return;
+
+    // In a Player vs Comp game, undo both the player's and the computer's move.
+    // In a Player vs Player or Comp vs Comp game, undo only one move.
+    int moves_to_undo = 1;
+    if (Players[0].comp != Players[1].comp && GameHistoryTop >= 2)
+    {
+        moves_to_undo = 2;
+    }
+
+    for (int i = 0; i < moves_to_undo; i++)
+    {
+        if (GameHistoryTop == 0) break;
+
+        GameHistoryTop--;
+        const sMove* m = &GameHistory[GameHistoryTop];
+
+        Player ^= 1;
+
+        if (Player == WHITE_PLAYER)
+        {
+            if (MoveNum > 1) MoveNum--;
+        }
+
+        // Undo the move on the board
+        UndoMove(m);
+
+        // Remove the move from the text log display
+        if (TextRows > 0)
+        {
+            TextRows--;
+            memset(&TextBuf[TextRows * TEXTW], ' ', TEXTW);
+        }
+    }
+    RestoreEnPassantStateAfterUndo();
+}
+
+Bool MoveHuman()
+{
+	u32 t;
+	char ch;
+	u16 col;
+	u8 piece, piece2;
+	Bool ok, sel, cancel;
+	u8 oldpos;
+	sMove* m;
+	int i, j;
+
+	// current player
+	sPlayer* p = &Players[Player];
+
+	// select view
+	PlayerView = Player;
+
+	// display board frame
+	DispFrame();
+
+	// prepare all possible moves
+	MoveDeep = 0;
+	MoveStackTop = 0;
+//#ifdef DEBUG_STACK	// debug flag - display stack max. depth
+//	MoveStackTopMax = 0; // number of entries
+//#endif
+	SearchMoves(0);
+
+	// check-mat
+	if (MoveStackNum[0] == 0)
+	{
+		LastMove = NULL;
+		return False;
+	}
+
+MOVE_AGAIN:
+
+	// check start position
+	for (i = 0; i < MAPSIZE; i++) BoardEnable[i] = False;
+	m = &MoveStack[MoveStackStart[0]];
+	for (i = MoveStackNum[0]; i > 0; i--)
+	{
+		BoardEnable[m->src] = True;
+		m++;
+	}
+
+	// display board
+	DispBoard();
+
+	// start blinking cursor
+	BlinkTime = Time();
+
+	KeyFlush();
+
+	// select piece
+	while (True)
+	{
+		// prepare cursor color
+		piece = GetPiece(p->curpos);
+		col = COLOR(255, 0, 0); // red cursor
+		ok = False;
+		if (BoardEnable[p->curpos])
+		{
+			col = COLOR(0, 64, 255);
+			ok = True; // can move
+		}
+
+		// wait for VSync
+		VgaWaitVSync();
+
+		// display cursor
+		t = Time();
+		DispField(p->curpos, ((((t - BlinkTime) >> 16) & 3) == 3) ? 0 : 4, col, False, False);
+
+		// get keyboard
+		ch = KeyGet();
+
+		// turn board
+		if (PlayerView)
+		{
+			if ((ch == KEY_LEFT) || (ch == KEY_RIGHT)) ch ^= KEY_LEFT ^ KEY_RIGHT;
+			if ((ch == KEY_UP) || (ch == KEY_DOWN)) ch ^= KEY_UP ^ KEY_DOWN;
+		}
+
+		// cursor movements
+		sel = False;
+		switch (ch)
+		{
+		case KEY_A:
+			if (ok) sel = True;
+			break;
+
+		case KEY_B:
+			UndoPlayerMove();
+			// Redraw everything and recalculate moves
+            DispFrame();
+			SearchMoves(0);
+			goto MOVE_AGAIN;
+
+		case KEY_LEFT:
+			DispField(p->curpos, 0, 0, False, False);
+			p->curpos--;
+			if (GetPiece(p->curpos) == BORDER) p->curpos += MAP0W;
+			BlinkTime = Time();
+			break;
+
+		case KEY_RIGHT:
+			DispField(p->curpos, 0, 0, False, False);
+			p->curpos++;
+			if (GetPiece(p->curpos) == BORDER) p->curpos -= MAP0W;
+			BlinkTime = Time();
+			break;
+
+		case KEY_DOWN:
+			DispField(p->curpos, 0, 0, False, False);
+			p->curpos -= MAPW;
+			if (GetPiece(p->curpos) == BORDER) p->curpos += MAP0H*MAPW;
+			BlinkTime = Time();
+			break;
+
+		case KEY_UP:
+			DispField(p->curpos, 0, 0, False, False);
+			p->curpos += MAPW;
+			if (GetPiece(p->curpos) == BORDER) p->curpos -= MAP0H*MAPW;
+			BlinkTime = Time();
+			break;
+
+		case KEY_X:
+			for (i = 0; i < MAPSIZE; i++) BoardEnable[i] = False;
+			DispBoard();
+			DispUpdate();
+#if USE_SCREENSHOT		// use screen shots
+			ScreenShot();
+#endif
+			MoveComp();
+			return False;
+
+		case KEY_Y:
+			return True; // quit game
+		}
+		if (sel) break;
+
+		// display info window
+		DispInfoCall();
+
+		// redraw board
+		DispUpdate();
+	}
+
+	// save start position
+	oldpos = p->curpos;
+
+	// prepare enable map
+	for (i = 0; i < MAPSIZE; i++) BoardEnable[i] = False;
+	BoardEnable[oldpos] = True; // return to old position
+	m = &MoveStack[MoveStackStart[0]];
+	for (i = MoveStackNum[0]; i > 0; i--)
+	{
+		if (m->src == oldpos) BoardEnable[m->dst] = True;
+		m++;
+	}
+
+	// display board with enable flags
+	DispBoard();
+
+	// pick up piece from chessboard
+	SetPiece(oldpos, EMPTY);
+	piece2 = EMPTY;
+
+	// start blinking cursor
+	BlinkTime = Time();
+
+	KeyFlush();
+
+	// move piece
+	while (True)
+	{
+		// prepare cursor color
+		col = COLOR(255, 0, 0); // red cursor
+		ok = False;
+		if (BoardEnable[p->curpos])
+		{
+			col = COLOR(0, 64, 255);
+			ok = True; // can move
+		}
+
+		// wait for VSync
+		VgaWaitVSync();
+
+		// display cursor
+		t = Time();
+		if ((((t - BlinkTime) >> 17) & 1) == 1) // display original field
+		{
+			SetPiece(p->curpos, piece2);
+			DispField(p->curpos, 0, 0, False, False);
+		}
+		else // display moved piece
+		{
+			SetPiece(p->curpos, piece);
+			DispField(p->curpos, 4, col, False, False);
+		}
+
+		// get keyboard
+		ch = KeyGet();
+
+		// turn board
+		if (PlayerView == BLACK_PLAYER)
+		{
+			if ((ch == KEY_LEFT) || (ch == KEY_RIGHT)) ch ^= KEY_LEFT ^ KEY_RIGHT;
+			if ((ch == KEY_UP) || (ch == KEY_DOWN)) ch ^= KEY_UP ^ KEY_DOWN;
+		}
+
+		// cursor movements
+		sel = False;
+		cancel = False;
+		switch (ch)
+		{
+		case KEY_A:
+			if (ok) sel = True;
+			break;
+
+		case KEY_B:
+			cancel = True;
+			break;
+
+		case KEY_LEFT:
+			SetPiece(p->curpos, piece2);
+			DispField(p->curpos, 0, 0, False, False);
+			p->curpos--;
+			if (GetPiece(p->curpos) == BORDER) p->curpos += MAP0W;
+			BlinkTime = Time();
+			piece2 = GetPiece(p->curpos);
+			break;
+
+		case KEY_RIGHT:
+			SetPiece(p->curpos, piece2);
+			DispField(p->curpos, 0, 0, False, False);
+			p->curpos++;
+			if (GetPiece(p->curpos) == BORDER) p->curpos -= MAP0W;
+			BlinkTime = Time();
+			piece2 = GetPiece(p->curpos);
+			break;
+
+		case KEY_DOWN:
+			SetPiece(p->curpos, piece2);
+			DispField(p->curpos, 0, 0, False, False);
+			p->curpos -= MAPW;
+			if (GetPiece(p->curpos) == BORDER) p->curpos += MAP0H*MAPW;
+			BlinkTime = Time();
+			piece2 = GetPiece(p->curpos);
+			break;
+
+		case KEY_UP:
+			SetPiece(p->curpos, piece2);
+			DispField(p->curpos, 0, 0, False, False);
+			p->curpos += MAPW;
+			if (GetPiece(p->curpos) == BORDER) p->curpos -= MAP0H*MAPW;
+			BlinkTime = Time();
+			piece2 = GetPiece(p->curpos);
+			break;
+
+		case KEY_X:
+			for (i = 0; i < MAPSIZE; i++) BoardEnable[i] = False;
+			DispBoard();
+			DispUpdate();
+			MoveComp();
+			return False;
+
+		case KEY_Y:
+			return True; // quit game
+		}
+		if (sel || cancel) break;
+
+		// redraw board
+		DispUpdate();
+	}
+
+	// return piece
+	SetPiece(p->curpos, piece2);
+	SetPiece(oldpos, piece);
+
+	// clear enable map
+	for (i = 0; i < MAPSIZE; i++) BoardEnable[i] = False;
+	DispBoard();
+	DispUpdate();
+
+	// cancel
+	if (cancel)
+	{
+		p->curpos = oldpos;
+		goto MOVE_AGAIN;
+	}
+
+	// return piece on original position
+	if (p->curpos == oldpos) goto MOVE_AGAIN;
+
+
+	// Check if this is a promotion move
+	bool is_promotion = false;
+	m = &MoveStack[MoveStackStart[0]];
+	for (i = 0; i < MoveStackNum[0]; i++)
+	{
+		if ((m[i].src == oldpos) && (m[i].dst == p->curpos) && (m[i].flags == MOVEFLAG_QUEEN))
+		{
+			is_promotion = true;
+			break;
+		}
+	}
+
+	u8 promoted_piece_type = QUEEN; // Default to queen
+	if (is_promotion)
+	{
+		promoted_piece_type = SelectPromotionPiece();
+		DispBoard(); // Redraw board after menu is closed
+		DispUpdate();
+	}
+
+	// search move
+	m = &MoveStack[MoveStackStart[0]];
+	for (i = MoveStackNum[0]; i > 0; i--)
+	{
+		if ((m->src == oldpos) && (m->dst == p->curpos))
+		{
+			if (m->flags == MOVEFLAG_QUEEN)
+			{
+				if ((m->extra & PIECEMASK) == promoted_piece_type)
+				{
+					DoMoveDisp(m);
+					break;
+				}
+			}
+			else
+			{
+				DoMoveDisp(m);
+				break;
+			}
+		}
+		m++;
+	}
+
+	return False;
+}
+
+void Open()
+{
+	const char* menu_items_base[] =
+	{
+		"Play with White",
+		"Play with Black",
+		"2 Players",
+		"Demo (Comp vs Comp)",
+		"Edit Board",
+		"Level: ",
+		"Time Limit: ",
+		"Exit to Bootloader"
+	};
+	const int num_items = 8;
+	int selection = 0;
+	char ch;
+
+	// Set font
+	pDrawFont = FontBold8x16;
+	DrawFontHeight = 16;
+	DrawFontWidth = 8;
+
+	KeyFlush();
+
+	while (True)
+	{
+		// --- Draw Menu ---
+		DrawClear();
+		DrawText2("CHESS ver 2.1", (WIDTH - 14*16)/2, 20, COL_YELLOW);
+
+		for (int i = 0; i < num_items; i++)
+		{
+			char buffer[40];
+			strcpy(buffer, menu_items_base[i]);
+
+			// Append dynamic text for Level
+			if (i == 5)
+			{
+				if (DeepMax == 2)      strcat(buffer, "BEGINNER");
+				else if (DeepMax == 3) strcat(buffer, "ADVANCED");
+				else if (DeepMax == 4) strcat(buffer, "PRO");
+				else if (DeepMax == 5) strcat(buffer, "SUPERPRO");
+				else if (DeepMax == 6) strcat(buffer, "DEPTH 6");
+				else if (DeepMax == 7) strcat(buffer, "DEPTH 7");
+				else strcat(buffer, "DEPTH 8");
+			}
+			// Append dynamic text for Time Limit
+			else if (i == 6)
+			{
+				if (TimeMax == 0) strcat(buffer, "INFINITY");
+				else if (TimeMax < 60000) { sprintf(buffer + strlen(buffer), "%d SEC", TimeMax / 1000); }
+				else if (TimeMax < 3600000) { sprintf(buffer + strlen(buffer), "%d MIN", TimeMax / 60000); }
+				else strcat(buffer, "1 HOUR");
+			}
+
+			u16 text_col = COL_WHITE;
+			u16 bg_col = COL_BLACK;
+			if (i == selection)
+			{
+				text_col = COL_BLACK;
+				bg_col = COL_YELLOW;
+			}
+			DrawTextBg(buffer, (WIDTH - strlen(buffer)*8)/2, 60 + i * 20, text_col, bg_col);
+		}
+		DispUpdate();
+
+		// --- Handle Input ---
+		ch = KeyGet();
+		switch (ch)
+		{
+			case KEY_DOWN:
+				selection++;
+				if (selection >= num_items) selection = 0;
+				break;
+
+			case KEY_UP:
+				selection--;
+				if (selection < 0) selection = num_items - 1;
+				break;
+
+			case KEY_A: // Confirm selection
+				switch (selection)
+				{
+					case 0: // Play with White
+						Players[0].comp = False;
+						Players[1].comp = True;
+						return;
+
+					case 1: // Play with Black
+						Players[0].comp = True;
+						Players[1].comp = False;
+						return;
+
+					case 2: // 2 Players
+						Players[0].comp = False;
+						Players[1].comp = False;
+						return;
+
+					case 3: // Demo Comp vs Comp
+						Players[0].comp = True;
+						Players[1].comp = True;
+						return;
+
+					case 4: // Edit Board
+						if (BoardEditor())
+						{
+							const char* submenu_items[] = {
+								"Play with White",
+								"Play with Black",
+								"2 Players",
+								"Comp vs Comp",
+								"Back to Main Menu"
+							};
+							const int num_submenu_items = 5;
+							int submenu_selection = 0;
+							bool exit_submenu = false;
+
+							KeyFlush();
+
+							while(!exit_submenu)
+							{
+								// Draw Sub-Menu
+								DrawClear();
+								DrawText("EDITED BOARD", (WIDTH - 12*8)/2, 60, COL_YELLOW);
+								DrawText("Select opponent:", (WIDTH - 16*8)/2, 90, COL_WHITE);
+
+								for (int i = 0; i < num_submenu_items; i++)
+								{
+									u16 text_col = COL_WHITE;
+									u16 bg_col = COL_BLACK;
+									if (i == submenu_selection)
+									{
+										text_col = COL_BLACK;
+										bg_col = COL_YELLOW;
+									}
+									DrawTextBg(submenu_items[i], (WIDTH - strlen(submenu_items[i])*8)/2, 120 + i * 20, text_col, bg_col);
+								}
+								DispUpdate();
+
+								// Handle Input
+								char sub_ch = KeyGet();
+								switch (sub_ch)
+								{
+									case KEY_DOWN:
+										submenu_selection++;
+										if (submenu_selection >= num_submenu_items) submenu_selection = 0;
+										break;
+									case KEY_UP:
+										submenu_selection--;
+										if (submenu_selection < 0) submenu_selection = num_submenu_items - 1;
+										break;
+									case KEY_Y:
+										exit_submenu = true;
+										break;
+									case KEY_A:
+										switch (submenu_selection)
+										{
+											case 0: // Play with White
+												Players[0].comp = False;
+												Players[1].comp = True;
+												return;
+											case 1: // Play with Black
+												Players[0].comp = True;
+												Players[1].comp = False;
+												return;
+											case 2: // 2 Players
+												Players[0].comp = False;
+												Players[1].comp = False;
+												return;
+											case 3: // Comp vs Comp
+												Players[0].comp = True;
+												Players[1].comp = True;
+												return;
+											case 4: // Back
+												exit_submenu = true;
+												break;
+										}
+										break;
+								}
+							}
+						}
+						break; 
+
+					case 5: // Level
+						DeepMax++;
+						if (DeepMax > DEEP_MAX) DeepMax = 2;
+						break;
+
+					case 6: // Time Limit
+						if (TimeMax == 0) 			 TimeMax = 	  2000;
+						else if (TimeMax == 2000)    TimeMax =    5000;
+						else if (TimeMax == 5000)    TimeMax =   10000;
+						else if (TimeMax == 10000)   TimeMax =   30000;
+						else if (TimeMax == 30000)   TimeMax =   60000;
+						else if (TimeMax == 60000)   TimeMax =  120000;
+						else if (TimeMax == 120000)  TimeMax =  300000;
+						else if (TimeMax == 300000)  TimeMax =  600000;
+						else if (TimeMax == 600000)  TimeMax = 1800000;
+						else if (TimeMax == 1800000) TimeMax = 3600000;
+						else TimeMax = 0;
+						break;
+
+					case 7: // Exit
+						ResetToBootLoader();
+						break;
+				}
+				break; // end KEY_A
+
+			case KEY_Y: // Allow Y as a shortcut to exit
+				ResetToBootLoader();
+				break;
+		}
+	}
+}
+
+int main()
+{
+	pText txt;
+	TextInit(&txt);
+	int i, row, col;
+
+	DeepMax = 4;
+    TimeMax = 0; // inifinited
+
+	while (True)
+	{
+		// open screen
+		Open();
+
+        // MODIFIED: Logic to start a new game or an edited game
+        if (BoardIsEdited)
+        {
+            if (!ValidateAndSetupEditedGame())
+            {
+                // This should not happen if editor validation is correct
+                // but as a fallback, restart the loop.
+                BoardIsEdited = False;
+                continue;
+            }
+        }
+        else
+        {
+            // new game
+            NewGame();
+        }
+
+		// display board frame
+		DispFrame();
+
+		// display board
+		DispBoard();
+
+		while (True)
+		{
+			// move computer or player
+			if (Players[Player].comp)
+				MoveComp();
+			else
+				if (MoveHuman()) break;
+
+			if (KeyGet() == KEY_Y) break;
+
+			// checkmat (9 chars)
+			if (LastMove == NULL)
+			{
+				TextSetStr(&txt, "CHECKMATE");
+				OutText(&txt);
+
+				WaitMs(500);
+				KeyFlush();
+				while (KeyGet() == NOKEY) {}
+				break;
+			}
+
+			// prepare move counter (4 chars)
+			TextEmpty(&txt);
+			if (MoveNum < 10) TextAddSpc(&txt);
+			if (MoveNum < 100) TextAddSpc(&txt);
+			TextAddUInt(&txt, MoveNum, 0);
+			TextAddCh(&txt, ':');
+			if (Player == BLACK_PLAYER) TextSetStr(&txt, "    ");
+
+			// special cases
+			if (LastMove->flags == MOVEFLAG_SMALL)
+			{
+				TextAddStr(&txt, "O-O");
+			}
+
+			else if (LastMove->flags == MOVEFLAG_BIG)
+			{
+				TextAddStr(&txt, "O-O-O");
+			}
+
+			else
+			{
+				// set source field (2 chars)
+				row = LastMove->src / 10;
+				col = LastMove->src - row*10;
+				TextAddCh(&txt, col+'a'-1);
+				TextAddCh(&txt, row+'1'-2);
+
+				// separator (1 char) - Use 'x' for captures, otherwise '-'
+				if ((LastMove->dstpiece != EMPTY) || (LastMove->flags == MOVEFLAG_EP))
+				{
+				    TextAddCh(&txt, 'x');
+				}
+				else
+				{
+				    TextAddCh(&txt, '-');
+				}
+
+				// set destination field (2 chars)
+				row = LastMove->dst / 10;
+				col = LastMove->dst - row*10;
+				TextAddCh(&txt, col+'a'-1);
+				TextAddCh(&txt, row+'1'-2);
+
+				// En Passant
+				if (LastMove->flags == MOVEFLAG_EP) TextAddStr(&txt, "e");
+			}
+
+			// display move
+			OutText(&txt);
+
+//#ifdef DEBUG_STACK	// debug flag - display stack max. depth
+//			TextSetUInt(&txt, MoveStackTopMax, 0);
+//			OutText(&txt);
+//#endif
+
+			// change player
+			Player ^= 1;
+
+			// increase move counter
+			if (Player == WHITE_PLAYER) MoveNum++;
+		}
+	}
+
+	TextTerm(&txt);
+}

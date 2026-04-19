@@ -57,3 +57,7 @@
 #if USE_PICOPAD		// use PicoPad device configuration
 #include "_devices/picopad/_include.h"
 #endif
+
+#if USE_CLOCKWORK		// use Picocalc Clockwork device configuration
+#include "_devices/clockwork/_include.h"
+#endif

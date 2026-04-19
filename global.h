@@ -155,6 +155,7 @@ typedef u64 uint64_t;
 #define	_UINT64_T_DECLARED
 #endif
 
+/*			Zdvojená definice, ať je důvod jakýkoliv dávám přednost překladači
 #ifndef _UINTPTR_T_DECLARED
 typedef unsigned long uintptr_t;
 #define _UINTPTR_T_DECLARED
@@ -164,7 +165,7 @@ typedef unsigned long uintptr_t;
 typedef long intptr_t;
 #define _INTPTR_T_DECLARED
 #endif
-
+*/
 // optimised Bool
 //  Note: Why is a Bool type of boolean variable used? Two types of boolean variables
 //  are commonly used. In Windows notation, a boolean variable is called BOOL with
@@ -191,8 +192,14 @@ typedef unsigned char bool;
 #define false 0
 
 // original-SDK macro
+#ifndef __aligned
 #define __aligned(x) __attribute__((aligned(x)))
+#endif
+
+#ifndef __noinline
 #define __noinline __attribute__((noinline))
+#endif
+
 #define __not_in_flash(group) __attribute__((section(".time_critical." #group)))
 #define __not_in_flash_func(func_name) __not_in_flash(__STRING(func_name)) func_name
 #define __no_inline_not_in_flash_func(func_name) __noinline __not_in_flash_func(func_name)

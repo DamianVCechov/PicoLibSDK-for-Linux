@@ -1,0 +1,24 @@
+CSRC += ${PICOLIBSDK_DEVICES_DIR}/clockwork/clockwork_bat.c
+CSRC += ${PICOLIBSDK_DEVICES_DIR}/clockwork/clockwork_key.c
+CSRC += ${PICOLIBSDK_DEVICES_DIR}/clockwork/clockwork_init.c
+CSRC += ${PICOLIBSDK_DEVICES_DIR}/clockwork/clockwork_ss.c
+
+DEFINE += -D USE_CLOCKWORK=1
+
+ifeq (${DEVICE},clockwork10)
+DEFINE += -D USE_CLOCKWORK10=1
+MCU=RP2040
+FLASHSIZE=0x200000
+endif
+
+ifeq (${DEVICE},clockwork20)
+DEFINE += -D USE_CLOCKWORK20=1
+MCU=RP2350A
+FLASHSIZE=0x400000
+endif
+
+ifeq (${DEVICE},clockwork20riscv)
+DEFINE += -D USE_CLOCKWORK20=1
+MCU=RP2350ARISCV
+FLASHSIZE=0x400000
+endif

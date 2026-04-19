@@ -49,6 +49,10 @@ RAMSIZE		// RAM base size in bytes (256 KB or 512 KB)
 //                      Device custom configutation
 // ----------------------------------------------------------------------------
 
+#if USE_CLOCKWORK			// use Picocalc Clockwork device configuration
+#include "_devices/clockwork/_config.h"
+#endif
+
 #if USE_DEMOVGA			// use DemoVGA device configuration
 #include "_devices/demovga/_config.h"
 #endif

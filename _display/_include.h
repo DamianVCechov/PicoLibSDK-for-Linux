@@ -35,4 +35,8 @@
 #include "st7789/st7789.h"
 #endif
 
+#ifdef USE_ILI9488
+#include "ili9488/ili9488.h"
+#endif
+
 #endif // _DISPLAY_INCLUDE_H

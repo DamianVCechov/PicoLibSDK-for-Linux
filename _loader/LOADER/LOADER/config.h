@@ -23,7 +23,7 @@
 // *********
 
 #define WIDTH		320		// screen width
-#define HEIGHT		240		// screen height
+#define HEIGHT		320		// screen height
 
 #if USE_PICOPADHSTX		// use PicoPadHSTX device configuration
 #define USE_DISPHSTXMINI	0	// 1=use HSTX Display Mini driver
@@ -115,7 +115,11 @@
 #define USE_FATALERROR	0		// use fatal error message 0=no, 1=display LCD message (sdk_fatal.c, sdk_fatal.h)
 #define USE_FIFO	1		// use Inter-core FIFO (sdk_fifo.c, sdk_fifo.h)
 #define USE_FLOAT	2		// use Single-floating point 1=in RAM, 2=in Flash (sdk_float.c, sdk_float_asm.S, sdk_float.h)
-#define USE_I2C		0		// use I2C interface (sdk_i2c.c, sdk_i2c.h)
+
+#ifdef USE_CLOCKWORK		// I2C keyboard
+#define USE_I2C		1		// use I2C interface (sdk_i2c.c, sdk_i2c.h)
+#endif		// USE_CLOCKWORK
+
 #define USE_INTERP	0		// use interpolator (sdk_interp.c, sdk_interp.h)
 #define USE_MULTICORE	1		// use Multicore (sdk_multicore.c, sdk_multicore.h)
 //#define USE_PWM		1		// use PWM (sdk_pwm.c, sdk_pwm.h)
