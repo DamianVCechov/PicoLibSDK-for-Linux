@@ -19,7 +19,7 @@
 #elif USE_PICOPADVGA
 #define GENERATOR_GPIO1		1		// used GPIO output 1 (better to be on same PWM slice as GENERATOR_GPIO2)
 #else
-#define GENERATOR_GPIO1		14		// used GPIO output 1 (better to be on same PWM slice as GENERATOR_GPIO2)
+#define GENERATOR_GPIO1		1		// used GPIO output 1 (better to be on same PWM slice as GENERATOR_GPIO2)
 #endif
 
 #define GENERATOR_GPIO2		PWMSND_GPIO	// used GPIO output 2 (speaker) (better to be on same PWM slice as GENERATOR_GPIO1)
@@ -107,7 +107,7 @@ const char* OutputText[OUTPUT_NUM] = { "GPIO26           ", "GPIO20 (Speaker) " 
 #elif USE_PICOPADVGA
 const char* OutputText[OUTPUT_NUM] = { "GPIO1            ", "GPIO0 (Speaker)  " };
 #else
-const char* OutputText[OUTPUT_NUM] = { "GPIO14           ", "GPIO15 (Speaker) " };
+const char* OutputText[OUTPUT_NUM] = { "GPIO1            ", "GPIO15 (Speaker) " };
 #endif
 
 sPLL AllSysClk[SYSCLK_NUM];	// system clock
