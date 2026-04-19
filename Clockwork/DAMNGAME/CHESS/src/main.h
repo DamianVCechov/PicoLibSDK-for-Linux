@@ -115,5 +115,7 @@ typedef struct {
 // image pitch: 98 bytes
 extern const u16 PiecesImg_Pal[16] __attribute__ ((aligned(4)));
 extern const u8 PiecesImg[21952] __attribute__ ((aligned(4)));
+extern const u16 PiecesImgF_Pal[16] __attribute__ ((aligned(4)));
+extern const u8 PiecesImgF[40432] __attribute__ ((aligned(4)));
 #define PIECESIMGW	196	// width of image
 #endif // _MAIN_H

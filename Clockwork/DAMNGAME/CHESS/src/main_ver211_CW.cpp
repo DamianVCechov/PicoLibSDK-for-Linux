@@ -3,7 +3,7 @@
  *
  *                Fixed, patches, new functions and new bugs :-) : @DamianVCechov 2025
  *                                   
- *                                          version 2.12
+ *                                          version 2.10
  *
  *                                             CHANGES:
  *
@@ -20,8 +20,6 @@
  *               2.02 fixed info window with animation move
  *               2.10 add editor chessboard, new scrolling menu, fixed some bugs
  *               2.11 modification of the rating of the figures
- *               ----------------------------------------------------------------------
- *               2.12 picocalc clockwork version - button F for FullScreen
  *
 */
 
@@ -47,9 +45,6 @@ Bool BoardEnable[MAPSIZE];
 // display info window
 Bool InfoWindow = False;
 Bool CloseWindow = False;
-Bool FullScreenMode = False;
-volatile Bool ToggleFullScreen = False; 
-#define PIECESIMGFW 266
 
 // game board with border (order of fields: from field A1 to field H8)
 u8 Board[MAPSIZE];
@@ -158,46 +153,39 @@ const sMove OpenMovesTab[4] = {
 	{ 27, 46, KNIGHT+WHITE+NOMOVING, EMPTY, MOVEFLAG_NORMAL, 0, 0 },	// knight from G1 to F3
 };
 
-void MyRawKeyCallback(u8 status, char ch)
-{
-    if (status == 0x01 && (ch == 'f' || ch == 'F')) {
-        ToggleFullScreen = True;
-    }
-}
-
-void RefreshHistory()
-{
-    if (FullScreenMode) return; // V režimu celé obrazovky nekreslíme text
-
-    pDrawFont = FontBold8x16;
-    DrawFontHeight = 16;
-    DrawFontWidth = 8;
-    for (int y = 0; y < TEXTH; y++)
-    {
-        char ch = TextBuf[(y+1)*TEXTW];
-        TextBuf[(y+1)*TEXTW] = 0;
-        DrawTextBg(&TextBuf[y*TEXTW], WIDTH - TEXTW*FONTW, y*FONTH, COL_WHITE, COL_BLACK);
-        TextBuf[(y+1)*TEXTW] = ch;
-    }
-}
-
+// print text row to text console
 void OutText(const pText* txt)
 {
-    if (TextRows >= TEXTH)
-    {
-        memmove(&TextBuf[0], &TextBuf[TEXTW], TEXTS - TEXTW);
-        memset(&TextBuf[TEXTS - TEXTW], ' ', TEXTW);
-        TextRows--;
-    }
+	// scroll buffer
+	if (TextRows >= TEXTH)
+	{
+		memmove(&TextBuf[0], &TextBuf[TEXTW], TEXTS - TEXTW);
+		memset(&TextBuf[TEXTS - TEXTW], ' ', TEXTW);
+		TextRows--;
+	}
 
-    int len = TextLen(txt);
-    if (len > TEXTW) len = TEXTW;
-    memcpy(&TextBuf[TextRows*TEXTW], TextPtr(txt), len);
-    TextRows++;
+	// print text
+	int len = TextLen(txt);
+	if (len > TEXTW) len = TEXTW;
+	memcpy(&TextBuf[TextRows*TEXTW], TextPtr(txt), len);
 
-    if (!FullScreenMode) {
-        RefreshHistory();
-    }
+	// set font
+	pDrawFont = FontBold8x16;
+	DrawFontHeight = 16;
+	DrawFontWidth = 8;
+
+	// print text buffer
+	int x, y;
+	char ch;
+	for (y = 0; y < TEXTH; y++)
+	{
+		ch = TextBuf[(y+1)*TEXTW];
+		TextBuf[(y+1)*TEXTW] = 0;
+		DrawTextBg(&TextBuf[y*TEXTW], WIDTH - TEXTW*FONTW, y*FONTH, COL_WHITE, COL_BLACK);
+		TextBuf[(y+1)*TEXTW] = ch;
+	}
+	DispUpdate();
+	TextRows++;
 }
 
 // Format move to text string
@@ -344,89 +332,101 @@ INLINE void SetPiece(u8 inx, u8 piece) { Board[inx] = piece; }
 //   usecatch ... use "catch" color
 void DispField(u8 inx, u8 w, u16 color, Bool usemove, Bool usecatch)
 {
-    u8 piece = GetPiece(inx);
-    if (piece == BORDER) return;
+	// check if field is valid
+	u8 piece = GetPiece(inx);
+	if (piece == BORDER) return;
 
-    u8 row = inx/MAPW;
-    u8 col = inx - row*MAPW - 1;
-    row -= 2;
+	// split index to column and row
+	u8 row = inx/MAPW;
+	u8 col = inx - row*MAPW - 1;
+	row -= 2;
 
-    // Výběr grafických dat a rozměrů
-    const u8* img = FullScreenMode ? PiecesImgF : PiecesImg;
-    const u16* pal = FullScreenMode ? PiecesImgF_Pal : PiecesImg_Pal;
-    int tw = FullScreenMode ? 38 : 28;
-    int iw = FullScreenMode ? PIECESIMGFW : PIECESIMGW;
+	// field source coordinate
+	int xs = (piece & PIECEMASK) * TILEW; // piece type, without color
+	int ys = ((piece & COLORMASK) == WHITE) ? TILEH : 0; // piece color
+	if (usemove)
+		ys += 4*TILEH; // use "move" color
+	else if (usecatch)
+		ys += 6*TILEH; // use "catch" color
+	else
+		if (((row + col) & 1) != 0) ys += 2*TILEH; // field color
 
-    int xs = (piece & PIECEMASK) * tw;
-    int ys = ((piece & COLORMASK) == WHITE) ? tw : 0;
-    if (usemove) ys += 4 * tw;
-    else if (usecatch) ys += 6 * tw;
-    else if (((row + col) & 1) != 0) ys += 2 * tw;
+	// field destination coordinate
+	u8 x, y;
+	if (PlayerView)
+	{
+		x = FRAME + (MAP0W - 1 - col)*TILEW;
+		y = FRAME + row*TILEH;
+	}
+	else
+	{
+		x = FRAME + col*TILEW;
+		y = FRAME + (MAP0H - 1 - row)*TILEH;
+	}
 
-    u16 x, y;
-    if (PlayerView) {
-        x = FRAME + (MAP0W - 1 - col) * tw;
-        y = FRAME + row * tw;
-    } else {
-        x = FRAME + col * tw;
-        y = FRAME + (MAP0H - 1 - row) * tw;
-    }
+	// display field
+	DrawImg4Pal(PiecesImg, PiecesImg_Pal, xs, ys, x, y, TILEW, TILEH, PIECESIMGW);
 
-    // Vykreslení s použitím zvolených parametrů
-    DrawImg4Pal(img, pal, xs, ys, x, y, tw, tw, iw);
-
-    // Kurzory a indikátory (přizpůsobené velikosti tw)
-    if (w > 0) {
-        DrawRect(x, y, tw, w, color);
-        DrawRect(x, y + tw - w, tw, w, color);
-        DrawRect(x, y + w, w, tw - 2 * w, color);
-        DrawRect(x + tw - w, y + w, w, tw - 2 * w, color);
-    } else if (BoardEnable[inx]) {
-        color = COLOR(0, 255, 0);
-        if (((row + col) & 1) != 0) color = COLOR(0, 180, 0);
-        w = 2;
-        DrawRect(x+2, y+2, tw-4, w, color);
-        DrawRect(x+2, y+tw-w-2, tw-4, w, color);
-        DrawRect(x+2, y+w+2, w, tw-2*w-4, color);
-        DrawRect(x+tw-w-2, y+w+2, w, tw-2*w-4, color);
-    }
+	// display cursor frame
+	if (w > 0)
+	{
+		DrawRect(x, y, TILEW, w, color); // top
+		DrawRect(x, y+TILEH-w, TILEW, w, color); // bottom
+		DrawRect(x, y+w, w, TILEH-2*w, color); // left
+		DrawRect(x+TILEW-w, y+w, w, TILEH-2*w, color); // right
+	}
+	else
+	{
+		// display enable mark
+		if (BoardEnable[inx])
+		{
+			color = COLOR(0, 255, 0);
+			if (((row + col) & 1) != 0) color = COLOR(0, 180, 0);
+			w = 2;
+#define DDW 2
+			DrawRect(x+DDW, y+DDW, TILEW-2*DDW, w, color); // top
+			DrawRect(x+DDW, y+TILEH-w-DDW, TILEW-2*DDW, w, color); // bottom
+			DrawRect(x+DDW, y+w+DDW, w, TILEH-2*w-2*DDW, color); // left
+			DrawRect(x+TILEW-w-DDW, y+w+DDW, w, TILEH-2*w-2*DDW, color); // right
+#undef DDW
+		}
+	}
 }
 
 // display board frame
 void DispFrame()
 {
-    int i;
-    char buf[2];
-    
-    // Dynamické rozměry
-    int tw = FullScreenMode ? 38 : 28;
-    int bw = FullScreenMode ? 320 : 240;
-    int bh = FullScreenMode ? 320 : 240;
+	int i, j;
+	u16 col;
+	char buf[2];
 
-    pDrawFont = FontBold8x8;
-    DrawFontHeight = 8;
-    DrawFontWidth = 8;
+	// set font
+	pDrawFont = FontBold8x8;
+	DrawFontHeight = 8;
+	DrawFontWidth = 8;
 
-    // Vykreslení rámu (ox/oy jsou 0, protože v obou režimech začínáme v rohu)
-    DrawRect(0, 0, bw, FRAME, FRAMECOL);
-    DrawRect(0, bh - FRAME, bw, FRAME, FRAMECOL);
-    DrawRect(0, FRAME, FRAME, bh - 2 * FRAME, FRAMECOL);
-    DrawRect(bw - FRAME, FRAME, FRAME, bh - 2 * FRAME, FRAMECOL);
+	// draw frame
+	DrawRect(0, 0, BOARDW, FRAME, FRAMECOL); // top border
+	DrawRect(0, BOARDH-FRAME, BOARDW, FRAME, FRAMECOL); // bottom border
+	DrawRect(0, FRAME, FRAME, BOARDH-2*FRAME, FRAMECOL); // left border
+	DrawRect(BOARDW-FRAME, FRAME, FRAME, BOARDH-2*FRAME, FRAMECOL); // right border
 
-    buf[1] = 0;
-    for (i = 0; i < MAP0W; i++)
-    {
-        buf[0] = PlayerView ? ('H' - i) : ('A' + i);
-        DrawText(buf, FRAME + tw/2 - 4 + i*tw, 0, LEGENDCOL);
-        DrawText(buf, FRAME + tw/2 - 4 + i*tw, bh - FRAME, LEGENDCOL);
-    }
+	// horizontal legend
+	buf[1] = 0;
+	for (i = 0; i < MAP0W; i++)
+	{
+		buf[0] = PlayerView ? ('H' - i) : ('A' + i);
+		DrawText(buf, FRAME + TILEW/2 - 4 + i*TILEW, 0, LEGENDCOL); // top legend
+		DrawText(buf, FRAME + TILEW/2 - 4 + i*TILEW, BOARDH-FRAME, LEGENDCOL); // bottom legend
+	}
 
-    for (i = 0; i < MAP0H; i++)
-    {
-        buf[0] = PlayerView ? ('1' + i) : ('8' - i);
-        DrawText(buf, 0, FRAME + tw/2 - 4 + i*tw, LEGENDCOL);
-        DrawText(buf, bw - FRAME, FRAME + tw/2 - 4 + i*tw, LEGENDCOL);
-    }
+	// vertical legend
+	for (i = 0; i < MAP0H; i++)
+	{
+		buf[0] = PlayerView ? ('1' + i) : ('8' - i);
+		DrawText(buf, 0, FRAME + TILEH/2 - 4 + i*TILEH, LEGENDCOL); // left legend
+		DrawText(buf, BOARDW-FRAME, FRAME + TILEH/2 - 4 + i*TILEH, LEGENDCOL); // right legend
+	}
 }
 
 // display base board
@@ -1608,16 +1608,6 @@ MOVE_AGAIN:
 	// select piece
 	while (True)
 	{
-        if (ToggleFullScreen)
-        {
-            ToggleFullScreen = False;
-            FullScreenMode = !FullScreenMode;
-            DrawClear();      // Vyčistí celou plochu 320x320
-            DispFrame();      // Vykreslí zvětšený/zmenšený rám
-            DispBoard();      // Vykreslí zvětšenou/zmenšenou šachovnici
-            if (!FullScreenMode) RefreshHistory(); 
-            BlinkTime = Time();
-        }
 		// prepare cursor color
 		piece = GetPiece(p->curpos);
 		col = COLOR(255, 0, 0); // red cursor
@@ -1692,7 +1682,6 @@ MOVE_AGAIN:
 			for (i = 0; i < MAPSIZE; i++) BoardEnable[i] = False;
 			DispBoard();
 			DispUpdate();
-            break;
 #if USE_SCREENSHOT		// use screen shots
 			ScreenShot();
 #endif
@@ -1739,16 +1728,6 @@ MOVE_AGAIN:
 	// move piece
 	while (True)
 	{
-        if (ToggleFullScreen)
-        {
-            ToggleFullScreen = False;
-            FullScreenMode = !FullScreenMode;
-            DrawClear();      // Vyčistí celou plochu 320x320
-            DispFrame();      // Vykreslí zvětšený/zmenšený rám
-            DispBoard();      // Vykreslí zvětšenou/zmenšenou šachovnici
-            if (!FullScreenMode) RefreshHistory(); 
-            BlinkTime = Time();
-        }
 		// prepare cursor color
 		col = COLOR(255, 0, 0); // red cursor
 		ok = False;
@@ -2138,7 +2117,6 @@ int main()
 
 	DeepMax = 4;
     TimeMax = 0; // inifinited
-    KeySetRawCallback(MyRawKeyCallback);
 
 	while (True)
 	{
