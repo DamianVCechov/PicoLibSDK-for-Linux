@@ -9,11 +9,11 @@
 				//    6=RGB888-Wiki, 7=RGB888-Smooth
 
 // fine-tuning timing
-#define NES_NMI_SHIFT	2	// shift start of V-blank (try to change if some lines flicker)
-#define	NES_HIT_SHIFT	30	// shift sprite#0 hit (recommended 30; try to change if some lines flicker)
+#define NES_NMI_SHIFT	3	// shift start of V-blank (try to change if some lines flicker)
+#define	NES_HIT_SHIFT	60	// shift sprite#0 hit (recommended 30; try to change if some lines flicker)
 
 // clip image
-#define NES_CLIP_UP	0	// clip image up
-#define NES_CLIP_DOWN	0	// clip image down
-#define NES_CLIP_LEFT	0	// clip image left
-#define NES_CLIP_RIGHT	0	// clip image right
+#define NES_CLIP_UP	8	// clip image up
+#define NES_CLIP_DOWN	8	// clip image down
+#define NES_CLIP_LEFT	8	// clip image left
+#define NES_CLIP_RIGHT	8	// clip image right

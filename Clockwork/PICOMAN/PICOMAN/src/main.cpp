@@ -313,7 +313,7 @@ int main() {
         DrawPanel(&rightPanel, panelWidth, 0, panelWidth, panelHeight, !leftActive);
 
         DrawRect(0, panelHeight, WIDTH, 18, MC_BOTTOM); 
-        DrawText("A:Open/Menu  B:Back  X:Mark  Y:Exit", (WIDTH-35*8)/2, HEIGHT-8*2, COL_BLACK);
+        DrawText("F1:Open/Menu F2:Back F3:Mark F4:Exit", (WIDTH-36*8)/2, HEIGHT-8*2, COL_BLACK);
         
         DispUpdate();
 
@@ -374,7 +374,10 @@ int main() {
                     if (strcmp(activePanel->files[activePanel->selected].name, "..") == 0) {
                         GoUpDir(activePanel->path);
                     } else if (strcmp(activePanel->files[activePanel->selected].name, "<Read Error>") != 0) {
-                        MakeFullPath(activePanel->path, activePanel->path, activePanel->files[activePanel->selected].name);
+                        char tempPath[MAX_PATH_LEN];
+                        MakeFullPath(tempPath, activePanel->path, activePanel->files[activePanel->selected].name);
+                        strcpy(activePanel->path, tempPath);
+                        
                     }
                     LoadDirectory(activePanel);
                     continue;                 
@@ -382,7 +385,7 @@ int main() {
 
                 // ACTION MENU
                 DrawRect(0, HEIGHT - 18, WIDTH, 18, COL_MAGENTA);
-                DrawText("A:Copy  B:Move  X:Delete  Y:Storno", (WIDTH-34*8)/2, HEIGHT-8*2, COL_WHITE);
+                DrawText("F1:Copy F2:Move F3:Delete F4:Storno", (WIDTH-35*8)/2, HEIGHT-8*2, COL_WHITE);
                 DispUpdate();
 
                 char actionKey = 0;
@@ -400,6 +403,7 @@ int main() {
                     bool actionDelete = (actionKey == KEY_X);
                     
                     ShowMessage("Working...");
+                    WaitMs(50);
 
                     if (hasMarked) {
                         for (int i = 0; i < activePanel->count; i++) {
