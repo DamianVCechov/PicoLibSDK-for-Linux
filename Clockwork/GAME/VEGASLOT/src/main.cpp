@@ -993,7 +993,7 @@ void NewGame()
 	int i;
 
 	// display background
-	DrawImgRle(BackImg, BackImg_Pal, 0, 0, WIDTH, HEIGHT);
+	DrawImgRle(BackImg, BackImg_Pal, 0, 40, WIDTH, HEIGHT - 80);
 
 	// initialize values
 	BankVal = 0; // current bank

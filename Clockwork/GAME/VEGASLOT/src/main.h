@@ -20,7 +20,7 @@
 #define REEL1X		64		// X coordinate of first reel
 #define REEL2X		(64+REELW)	// X coordinate of second reel (= 128)
 #define REEL3X		(64+2*REELW)	// X coordinate of third reel (= 192)
-#define REELY		48		// Y coordinate of reels
+#define REELY		88		// Y coordinate of reels
 
 #define REELSTATE_IN	1		// reel state: turning in
 #define REELSTATE_OUT	2		// reel state: turning out
@@ -59,7 +59,7 @@ typedef struct {
 
 #define DIGITW		16		// digit width
 #define DIGITH		24		// digit height
-#define DIGITY		16		// digit Y coordinate
+#define DIGITY		56		// digit Y coordinate
 #define BANKX		40		// BANK X coordinate
 #define BANKNUM		4		// BANK number of digits
 #define WINX		120		// WIN X coordinate
