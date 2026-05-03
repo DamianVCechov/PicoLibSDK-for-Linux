@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # compile all tools
-cd Boot2CRC
+cd FlipRowOrder
+gcc FlipRowOrder.c -o FlipRowOrder
+cd ../Boot2CRC
 gcc -m32 boot2crc.cpp -o boot2crc
 cd ../HidComp
 gcc -m32 HidComp.cpp -o HidComp
