@@ -10,6 +10,7 @@
 #ifndef KEYBUF_SIZE
 #define KEYBUF_SIZE 10
 #endif
+#define MAX_KEYS 128  // Bezpečná velikost pro 7bitové ASCII znaky (0-127)
 
 #if USE_CLOCKWORK
 
@@ -41,7 +42,7 @@
 const u8 KeyGpio[KEY_NUM] = {	4,	3,	2,	5,	17,	16,	18,	19 };
 #endif
 
-volatile Bool KeyPressMap[KEY_NUM];
+volatile Bool KeyPressMap[MAX_KEYS];
 u8 KeyBuf[KEYBUF_SIZE];
 volatile u8 KeyWriteOff = 0;
 volatile u8 KeyReadOff = 0;
@@ -61,7 +62,7 @@ const char KeyMapToChar[KEY_NUM+1] = {
 };
 
 #if USE_PICOCALC_I2C
-volatile u16 PicocalcTimeout[KEY_NUM];
+volatile u16 PicocalcTimeout[MAX_KEYS];
 volatile u32 LastI2CScanTime = 0; 
 volatile Bool I2C_Active = False;
 
@@ -127,6 +128,15 @@ void Picocalc_Update() {
 
             if (ch != 0) {
                 u8 mapped = PicocalcMapKey(ch); // Zde se 0x81 změní na KEY_A (7)
+                if (mapped == 0 && ch < 128) {
+                    // ASCII Backspace (0x08) by se tloukl s KEY_B (8).
+                    // Přeložíme ho tedy na Delete (0x7F).
+                    if (ch == 0x08) {
+                        ch = 0x7F;
+                    }
+                    mapped = ch;
+                }
+
                 if (mapped != 0) {
                     // Logic: 0x01 = Press, 0x03 = Release
                     if (status == 0x01) {
@@ -213,7 +223,8 @@ Bool KeyPressed(u8 key)
     #if USE_PICOCALC_I2C
     Picocalc_Update(); 
     #endif
-    if ((key < 1) || (key > KEY_NUM)) return False;
+    // Povolíme kontrolu pro všechny ASCII hodnoty, nejen pro původní KEY_NUM
+    if ((key < 1) || (key >= MAX_KEYS)) return False; 
     return KeyPressMap[key-1];
 }
 
@@ -262,18 +273,75 @@ u8 KeyGetRel()
     return ch;
 }
 
+// Zpoždění pro opakování (v mikrosekundách)
+#define KEY_REPEAT_DELAY 500000  // 500 ms: Doba, po kterou se musí klávesa držet, než začne opakování
+#define KEY_REPEAT_RATE  100000  // 100 ms: Rychlost opakování (jak rychle za sebou znaky naskáčou)
+
 u8 KeyGet() {
+    static u8 last_key = NOKEY;
+    static u32 next_repeat_time = 0;
     u8 ch;
+
     for (;;) {
-        ch = KeyGetRel();
-        if ((ch & KEY_RELEASE) == 0) return ch;
+        ch = KeyGetRel(); // Přečtení z bufferu (stejně jako v originále)
+        
+        // 1. Zpracování reálných událostí z bufferu
+        if (ch != NOKEY) {
+            // Jde o stisk klávesy? (událost nemá flag uvolnění)
+            if ((ch & KEY_RELEASE) == 0) {
+                last_key = ch; // Zapamatujeme si, co se drží
+                next_repeat_time = Time() + KEY_REPEAT_DELAY; // Nastavíme časovač pro první opakování
+                return ch;
+            } 
+            // Jde o uvolnění klávesy
+            else {
+                // Vymaskujeme kód klávesy pomocí KEY_MASK, abychom odstranili flag uvolnění
+                if ((ch & KEY_MASK) == last_key) {
+                    last_key = NOKEY; // Uživatel klávesu pustil, rušíme opakování
+                }
+                // Cyklus pokračuje (continue) – původní funkce také uvolnění ignorovala a hledala dál[cite: 1]
+                continue; 
+            }
+        }
+
+        // 2. Buffer je prázdný, řešíme auto-repeat pro drženou klávesu
+        if (last_key != NOKEY) {
+            // Kontrola pojistky: Je klávesa stále fyzicky stisknuta? Využijeme vaši existující funkci KeyPressed[cite: 1]
+            if (KeyPressed(last_key)) {
+                u32 current_time = Time();
+                
+                // Zkontrolujeme čas (zápis s přetečením (< 0x80000000) je bezpečný pro u32 čítače)
+                if ((current_time - next_repeat_time) < 0x80000000) {
+                    next_repeat_time = current_time + KEY_REPEAT_RATE; // Posuneme časovač na další tik
+                    return last_key; // Vrátíme klávesu programu jako "nový" stisk
+                }
+            } else {
+                // Klávesa byla uvolněna, ale z nějakého důvodu jsme minuli KEY_RELEASE událost v bufferu
+                last_key = NOKEY;
+            }
+        }
+
+        // Nic se neděje, vracíme NOKEY[cite: 1]
+        return NOKEY;
     }
 }
 
 char KeyChar() {
-    // Opraveno: Vždy číst přes buffer, aby se zachovala synchronizace s KeyGet
-    // Pokud potřebujete, aby KeyChar vracel znaky, upravte tabulku KeyMapToChar nahoře.
-    return KeyMapToChar[(u8)KeyGet()];
+    u8 ch = KeyGet(); // Získáme stisk (obsahuje už i naši novou auto-repeat logiku)
+
+    if (ch == NOKEY) return NOCHAR;
+
+    // Je to původní hardwarová klávesa PicoPadu (hodnoty 1 až 8)?
+    if (ch <= KEY_NUM) {
+        return KeyMapToChar[ch]; // Zpětná kompatibilita: přeložíme přes původní pole
+    }
+    
+    // Je to ASCII kód propuštěný z I2C klávesnice?
+    if (ch < 128) {
+        return (char)ch; // Obejdeme tabulku a vracíme ho přímo
+    }
+
+    return NOCHAR;
 }
 
 void KeyFlush() {

@@ -24,11 +24,12 @@ extern "C" {
 #define KEY_B		8
 
 #define KEY_NUM		8
+#define MAX_KEYS    128
 #define KEY_MASK	0x7f
 #define KEY_RELEASE 0x80
 #define KEY_REL_TIME	50
 
-extern volatile Bool KeyPressMap[KEY_NUM];
+extern volatile Bool KeyPressMap[MAX_KEYS];
 
 void KeyInit();
 void KeyTerm();
